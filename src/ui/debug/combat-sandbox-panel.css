@@ -1,0 +1,356 @@
+/* combat-sandbox-panel.css - Isolated Styles for Developer Combat Sandbox Panel */
+
+.csb-panel-container {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  max-height: 85vh;
+  background: rgba(15, 10, 25, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #7c3aed;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.75), 0 0 16px rgba(124, 58, 237, 0.35);
+  color: #f1f5f9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  user-select: text;
+}
+
+.csb-panel-container.csb-collapsed {
+  max-height: 44px;
+}
+
+.csb-panel-container.csb-hidden {
+  display: none !important;
+}
+
+/* Header */
+.csb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: linear-gradient(90deg, #3b0764, #1e1b4b);
+  border-bottom: 1px solid #6d28d9;
+  cursor: pointer;
+  user-select: none;
+}
+
+.csb-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+  color: #fbbf24;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.csb-header-badge {
+  background: #7c3aed;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.csb-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.csb-btn-icon {
+  background: transparent;
+  border: 1px solid #8b5cf6;
+  color: #e2e8f0;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.csb-btn-icon:hover {
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+/* Scrollable Content Body */
+.csb-body {
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(85vh - 48px);
+}
+
+.csb-section {
+  background: rgba(30, 20, 50, 0.6);
+  border: 1px solid #4c1d95;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.csb-section-title {
+  font-weight: bold;
+  color: #a78bfa;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Status Bar & Stats */
+.csb-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.csb-stat-box {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #3730a3;
+  border-radius: 4px;
+  padding: 4px;
+  text-align: center;
+}
+
+.csb-stat-label {
+  font-size: 9px;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.csb-stat-val {
+  font-size: 13px;
+  font-weight: bold;
+  color: #38bdf8;
+}
+
+/* Form Controls */
+.csb-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.csb-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.csb-input,
+.csb-select {
+  background: #0f172a;
+  border: 1px solid #64748b;
+  color: #f8fafc;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.csb-input:focus,
+.csb-select:focus {
+  border-color: #a855f7;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+}
+
+.csb-btn {
+  background: #6d28d9;
+  border: 1px solid #8b5cf6;
+  color: #ffffff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.csb-btn:hover {
+  background: #7c3aed;
+  border-color: #c084fc;
+}
+
+.csb-btn:active {
+  transform: translateY(1px);
+}
+
+.csb-btn-secondary {
+  background: #334155;
+  border-color: #64748b;
+}
+
+.csb-btn-secondary:hover {
+  background: #475569;
+  border-color: #94a3b8;
+}
+
+.csb-btn-danger {
+  background: #991b1b;
+  border-color: #ef4444;
+}
+
+.csb-btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* Monster Preview Card */
+.csb-monster-card {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #6366f1;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.csb-monster-name {
+  font-weight: bold;
+  color: #facc15;
+  font-size: 12px;
+}
+
+.csb-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.csb-tag {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid #6366f1;
+  color: #c7d2fe;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.csb-tag-danger {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.csb-tag-success {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+/* Rosters & Tables */
+.csb-roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.csb-roster-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 10.5px;
+}
+
+.csb-roster-item.csb-defeated {
+  opacity: 0.5;
+  border-color: #7f1d1d;
+  background: rgba(69, 10, 10, 0.4);
+}
+
+.csb-roster-item.csb-selected {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.csb-hp-bar {
+  display: inline-block;
+  width: 50px;
+  height: 6px;
+  background: #334155;
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.csb-hp-fill {
+  height: 100%;
+  background: #22c55e;
+  transition: width 0.2s ease;
+}
+
+.csb-hp-fill.csb-hp-low {
+  background: #ef4444;
+}
+
+/* Combat Log */
+.csb-log-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #090614;
+  border: 1px solid #2e1065;
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 10.5px;
+}
+
+.csb-log-entry {
+  padding: 2px 4px;
+  border-left: 3px solid #64748b;
+  background: rgba(255, 255, 255, 0.02);
+  word-break: break-word;
+}
+
+.csb-log-damage { border-left-color: #ef4444; color: #fecaca; }
+.csb-log-status { border-left-color: #a855f7; color: #f3e8ff; }
+.csb-log-buff { border-left-color: #3b82f6; color: #dbeafe; }
+.csb-log-debuff { border-left-color: #f59e0b; color: #fef3c7; }
+.csb-log-summon { border-left-color: #10b981; color: #d1fae5; }
+.csb-log-system { border-left-color: #64748b; color: #cbd5e1; }
+
+.csb-log-meta {
+  font-size: 9px;
+  color: #64748b;
+  margin-right: 4px;
+}

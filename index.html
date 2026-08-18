@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Bard's Tale VR - Skara Brae Tavern</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay for Desktop & VR Preview -->
+    <header class="hud-header">
+      <div class="brand">
+        <span class="gem-badge">🛸 Google XR Vibe</span>
+        <h1>THE BARD'S TALE <span>VR</span></h1>
+      </div>
+      <div id="vr-button-container"></div>
+    </header>
+
+    <main class="hud-overlay">
+      <div class="panel glass-panel songbook-panel">
+        <h2>📜 Skara Brae Tavern Actions</h2>
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 10px;">
+          The Bard performs <em>"The Evil in Skara Brae"</em> on stage! Select the Bard to create your party.
+        </p>
+
+        <div class="hud-actions">
+          <button id="open-party-hud-btn" class="action-btn gold-btn">📜 Party Creation (Select Bard)</button>
+          <button id="restart-song-btn" class="action-btn">🎵 Sing Intro Song</button>
+          <button id="exit-game-hud-btn" class="action-btn danger-btn">🚪 Exit Game (Door)</button>
+        </div>
+      </div>
+
+      <!-- Controls Guide -->
+      <div class="panel glass-panel controls-panel">
+        <h2>🎮 Controls</h2>
+        <div class="control-mode">
+          <div class="mode-item">
+            <strong>🥽 VR Headset:</strong> Point & Trigger on Bard (Stage) for Party Screen, or Door to Exit.
+          </div>
+          <div class="mode-item">
+            <strong>💻 Desktop:</strong> Click Bard or Door in 3D Tavern. Mouse Orbit, WASD to move.
+          </div>
+        </div>
+        <div class="status-bar">
+          <span class="status-indicator active">● Audio Engine Ready</span>
+          <span id="xr-status">WebXR Available</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Floating 3D Interaction Notification -->
+    <div id="toast-notification" class="toast hidden"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
