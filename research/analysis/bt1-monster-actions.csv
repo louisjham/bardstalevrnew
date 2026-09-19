@@ -1,0 +1,128 @@
+id,slug,name,original_index,on_hit_effect,slot_1,slot_2,slot_3,slot_4,range_capability,verified_source
+0,kobold,Kobold,0x00,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+1,hobbit,Hobbit,0x01,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+2,gnome,Gnome,0x02,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+3,dwarf,Dwarf,0x03,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+4,thief,Thief,0x04,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+5,hobgoblin,Hobgoblin,0x05,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+6,conjurer_06,Conjurer,0x06,none,Attack,Arc Fire (1xd4),Arc Fire (1xd4),Freeze Foes,ranged_spell,bt1-c64-1985
+7,magician_07,Magician,0x07,none,Attack,Wither Strike,Invisibility,Attack,ranged_spell,bt1-c64-1985
+8,orc,Orc,0x08,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+9,skeleton,Skeleton,0x09,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+10,nomad,Nomad,0x0A,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+11,spider,Spider,0x0B,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+12,mad_dog,Mad Dog,0x0C,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+13,barbarian,Barbarian,0x0D,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+14,mercenary,Mercenary,0x0E,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+15,wolf,Wolf,0x0F,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+16,jade_monk,Jade Monk,0x10,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+17,half_orc,Half Orc,0x11,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+18,swordsman,Swordsman,0x12,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+19,zombie,Zombie,0x13,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+20,conjurer_20,Conjurer,0x14,none,Attack,Arc Fire (3xd4),Freeze Foes,Battleskill,ranged_spell,bt1-c64-1985
+21,magician_21,Magician,0x15,none,Attack,Wither Strike,Invisibility,Ogrestrength,ranged_spell,bt1-c64-1985
+22,sorcerer_22,Sorcerer,0x16,none,Attack,Warstrike (4d4),Warstrike (4d4),Phase Blur,ranged_spell,bt1-c64-1985
+23,wizard_23,Wizard,0x17,none,Attack,Arc Fire (3xd4),Wither Strike,Summon Dead,ranged_spell,bt1-c64-1985
+24,samurai,Samurai,0x18,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+25,black_widow,Black Widow,0x19,poison,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+26,assassin,Assassin,0x1A,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+27,werewolf,Werewolf,0x1B,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+28,ogre,Ogre,0x1C,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+29,wight,Wight,0x1D,wither,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+30,statue,Statue,0x1E,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+31,bladesman,Bladesman,0x1F,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+32,goblin_lord,Goblin Lord,0x20,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+33,master_thief,Master Thief,0x21,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+34,conjurer_34,Conjurer,0x22,none,Attack,Arc Fire (5xd4),Battleskill,Magestar,ranged_spell,bt1-c64-1985
+35,magician_35,Magician,0x23,none,Attack,Ogrestrength,Mithril Might,Starflare (6d4),ranged_spell,bt1-c64-1985
+36,sorcerer_36,Sorcerer,0x24,none,Attack,Warstrike (4d4),Phase Blur,Hypnotic Image,ranged_spell,bt1-c64-1985
+37,wizard_37,Wizard,0x25,none,Attack,Magestar,Ogrestrength,Summon Dead,ranged_spell,bt1-c64-1985
+38,ninja,Ninja,0x26,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+39,spinner,Spinner,0x27,poison,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+40,scarlet_monk,Scarlet Monk,0x28,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+41,doppleganger,Doppleganger,0x29,none,Attack,Attack,Duplicate,Duplicate,ranged_special,bt1-c64-1985
+42,stone_giant,Stone Giant,0x2A,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+43,ogre_magician,Ogre Magician,0x2B,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+44,jackalwere,Jackalwere,0x2C,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+45,stone_elemental,Stone Elemental,0x2D,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+46,blue_dragon,Blue Dragon,0x2E,none,Attack,Attack,Breath (16d4 Fire),Breath (16d4 Fire),ranged_breath,bt1-c64-1985
+47,seeker,Seeker,0x2F,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+48,dwarf_king,Dwarf King,0x30,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+49,samurai_lord,Samurai Lord,0x31,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+50,ghoul,Ghoul,0x32,wither,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+51,conjurer_51,Conjurer,0x33,none,Attack,Battleskill,Magestar,Warstrike (4d4),ranged_spell,bt1-c64-1985
+52,magician_52,Magician,0x34,none,Attack,Ogrestrength,Starflare (6d4),Spectre Touch,ranged_spell,bt1-c64-1985
+53,sorcerer_53,Sorcerer,0x35,none,Attack,Spectre Touch,Wind Wolf,Curse,ranged_spell,bt1-c64-1985
+54,wizard_54,Wizard,0x36,none,Attack,Magestar,Starflare (6d4),Lesser Summon,ranged_spell,bt1-c64-1985
+55,azure_monk,Azure Monk,0x37,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+56,weretiger,Weretiger,0x38,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+57,hydra,Hydra,0x39,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+58,green_dragon,Green Dragon,0x3A,none,Attack,Attack,Breath (18d4 Choke),Breath (18d4 Choke),ranged_breath,bt1-c64-1985
+59,wraith,Wraith,0x3B,insanity,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+60,lurker,Lurker,0x3C,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+61,fire_giant,Fire Giant,0x3D,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+62,copper_dragon,Copper Dragon,0x3E,none,Attack,Attack,Breath (20d4 Steam),Breath (20d4 Steam),ranged_breath,bt1-c64-1985
+63,ivory_monk,Ivory Monk,0x3F,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+64,shadow,Shadow,0x40,insanity,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+65,berserker,Berserker,0x41,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+66,conjurer_66,Conjurer,0x42,none,Attack,Warstrike (4d4),Instant Wolf,Instant Wolf,ranged_spell,bt1-c64-1985
+67,magician_67,Magician,0x43,none,Attack,Ogrestrength,Spectre Touch,Dragon Breath,ranged_spell,bt1-c64-1985
+68,sorcerer_68,Sorcerer,0x44,none,Attack,Instant Wolf,Starflare (6d4),Lesser Summon,ranged_spell,bt1-c64-1985
+69,wizard_69,Wizard,0x45,none,Attack,Wind Wolf,Curse,Wind Warrior,ranged_spell,bt1-c64-1985
+70,white_dragon,White Dragon,0x46,none,Attack,Attack,Breath (24d4 Freeze),Breath (24d4 Freeze),ranged_breath,bt1-c64-1985
+71,ice_giant,Ice Giant,0x47,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+72,eye_spy,Eye Spy,0x48,poison,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+73,ogre_lord,Ogre Lord,0x49,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+74,body_snatcher,Body Snatcher,0x4A,possess,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+75,xorn,Xorn,0x4B,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+76,phantom,Phantom,0x4C,drain,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+77,lesser_demon,Lesser Demon,0x4D,wither,Attack,Curse,Attack,Attack,ranged_spell,bt1-c64-1985
+78,fred,Fred,0x4E,none,Attack,Attack,Attack,Wind Ogre,ranged_spell,bt1-c64-1985
+79,conjurer_79,Conjurer,0x4F,none,Attack,Shock-Sphere (8d4),Wrath of Valhalla,Poison Strike,ranged_spell,bt1-c64-1985
+80,magician_80,Magician,0x50,none,Attack,Starflare (6d4),Mithril Might,Dragon Breath,ranged_spell,bt1-c64-1985
+81,sorcerer_81,Sorcerer,0x51,none,Attack,Wind Warrior,Shock-Sphere (8d4),Wind Dragon,ranged_spell,bt1-c64-1985
+82,wizard_82,Wizard,0x52,none,Attack,Prime Summoning,Summon Phantom,Dragon Breath,ranged_spell,bt1-c64-1985
+83,master_ninja,Master Ninja,0x53,critical,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+84,war_giant,War Giant,0x54,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+85,warrior_elite,Warrior Elite,0x55,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+86,bone_crusher,Bone Crusher,0x56,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+87,ghost,Ghost,0x57,wither,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+88,grey_dragon,Grey Dragon,0x58,none,Attack,Attack,Breath (32d4 Fire),Breath (32d4 Fire),ranged_breath,bt1-c64-1985
+89,basilisk,Basilisk,0x59,stone,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+90,evil_eye,Evil Eye,0x5A,poison,Attack,Starflare (6d4),Spectre Touch,Attack,ranged_spell,bt1-c64-1985
+91,mimic,Mimic,0x5B,none,Attack,Attack,Duplicate,Duplicate,ranged_special,bt1-c64-1985
+92,golem,Golem,0x5C,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+93,vampire,Vampire,0x5D,drain,Attack,Hypnotic Image,Attack,Attack,ranged_spell,bt1-c64-1985
+94,demon,Demon,0x5E,insanity,Attack,Breath (32d4 Fire),Attack,Attack,ranged_breath,bt1-c64-1985
+95,bandersnatch,Bandersnatch,0x5F,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+96,maze_dweller,Maze Dweller,0x60,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+97,mongo,Mongo,0x61,none,Attack,Stone Touch,Stone Touch,Attack,ranged_spell,bt1-c64-1985
+98,mangar_guard,Mangar Guard,0x62,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+99,gimp,Gimp,0x63,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+100,red_dragon,Red Dragon,0x64,none,Attack,Attack,Breath (40d4 Fire),Breath (40d4 Fire),ranged_breath,bt1-c64-1985
+101,titan,Titan,0x65,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+102,master_conjurer,Master Conjurer,0x66,none,Attack,Instant Ogre,Shock-Sphere,Shock-Sphere,ranged_spell,bt1-c64-1985
+103,master_magician,Master Magician,0x67,none,Attack,Dragon Breath,Stone Touch,Deathstrike,ranged_spell,bt1-c64-1985
+104,master_sorcerer,Master Sorcerer,0x68,none,Attack,Shock-Sphere,Wind Dragon,Wind Giant,ranged_spell,bt1-c64-1985
+105,mind_shadow,Mind Shadow,0x69,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+106,spectre,Spectre,0x6A,drain,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+107,cloud_giant,Cloud Giant,0x6B,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+108,beholder,Beholder,0x6C,poison,Attack,Spectre Touch,Dragon Breath,Deathstrike,ranged_spell,bt1-c64-1985
+109,vampire_lord,Vampire Lord,0x6D,drain,Attack,Attack,Summon Phantom,Deathstrike,ranged_spell,bt1-c64-1985
+110,greater_demon,Greater Demon,0x6E,possess,Attack,Prime Summoning,Breath (48d4 Fire),Attack,ranged_mixed,bt1-c64-1985
+111,master_wizard,Master Wizard,0x6F,none,Attack,Prime Summoning,Greater Summon,Greater Summon,ranged_spell,bt1-c64-1985
+112,mad_god,Mad God,0x70,none,Attack,Stone Touch,Poison Strike,Attack,ranged_spell,bt1-c64-1985
+113,maze_master,Maze Master,0x71,none,Attack,Shock-Sphere,Attack,Attack,ranged_spell,bt1-c64-1985
+114,death_denizen,Death Denizen,0x72,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+115,jabberwock,Jabberwock,0x73,none,Attack,Attack,Breath (34d4 Shock),Breath (34d4 Shock),ranged_breath,bt1-c64-1985
+116,black_dragon,Black Dragon,0x74,none,Attack,Attack,Breath (44d4 Drain),Breath (44d4 Drain),ranged_breath,bt1-c64-1985
+117,mangar,Mangar,0x75,critical,Greater Summon,Wind Giant,Deathstrike,Dragon Breath,ranged_boss,bt1-c64-1985
+118,crystal_golem,Crystal Golem,0x76,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+119,soul_sucker,Soul Sucker,0x77,none,Attack,Attack,Breath (64d4 Drain),Breath (64d4 Drain),ranged_breath,bt1-c64-1985
+120,storm_giant,Storm Giant,0x78,none,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+121,ancient_enemy,Ancient Enemy,0x79,wither,Attack,Attack,Attack,Attack,melee_only,bt1-c64-1985
+122,balrog,Balrog,0x7A,insanity,Attack,Deathstrike,Attack,Attack,ranged_spell,bt1-c64-1985
+123,lich,Lich,0x7B,possess,Attack,Greater Summon,Deathstrike,Hypnotic Image,ranged_boss,bt1-c64-1985
+124,archmage,Archmage,0x7C,none,Greater Summon,Wind Giant,Deathstrike,Dragon Breath,ranged_boss,bt1-c64-1985
+125,demon_lord,Demon Lord,0x7D,stone,Attack,Attack,Greater Summon,Breath (72d4 Fire),ranged_mixed,bt1-c64-1985
+126,old_man,Old Man,0x7E,critical,Attack,Shock-Sphere,Shock-Sphere,Attack,ranged_spell,bt1-c64-1985

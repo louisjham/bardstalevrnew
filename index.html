@@ -19,7 +19,20 @@
         <span class="gem-badge">🛸 Google XR Vibe</span>
         <h1>THE BARD'S TALE <span>VR</span></h1>
       </div>
-      <div id="vr-button-container"></div>
+
+      <!-- Real-Time World Day / Night Clock Widget -->
+      <div id="day-night-clock" class="day-night-clock">
+        <span id="day-night-icon" class="clock-icon">☀️</span>
+        <div class="clock-details">
+          <span id="day-night-text" class="clock-time">DAY (03:00)</span>
+          <span id="day-night-services" class="services-badge open">SERVICES OPEN</span>
+        </div>
+      </div>
+
+      <div class="header-actions-group" style="display: flex; gap: 8px; align-items: center;">
+        <button id="restart-c64-header-btn" class="action-btn danger-btn" style="padding: 6px 12px; font-size: 0.8rem;" title="Restart game back to 1985 C64 desk (Key: R)">🔄 Restart C64</button>
+        <div id="vr-button-container"></div>
+      </div>
     </header>
 
     <main class="hud-overlay">
@@ -32,6 +45,7 @@
         <div class="hud-actions">
           <button id="open-party-hud-btn" class="action-btn gold-btn">📜 Party Creation (Select Bard)</button>
           <button id="restart-song-btn" class="action-btn">🎵 Sing Intro Song</button>
+          <button id="restart-c64-btn" class="action-btn danger-btn">🔄 Restart to C64 Desk</button>
           <button id="exit-game-hud-btn" class="action-btn danger-btn">🚪 Exit Game (Door)</button>
         </div>
       </div>
@@ -50,9 +64,34 @@
         <div class="status-bar">
           <span class="status-indicator active">● Audio Engine Ready</span>
           <span id="xr-status">WebXR Available</span>
+          <span id="gamepad-status" class="status-indicator">🎮 Gamepad Ready</span>
         </div>
       </div>
     </main>
+
+    <!-- Center Aiming Reticle for Desktop & Gamepad Interaction -->
+    <div id="center-reticle" class="center-reticle">
+      <div class="reticle-dot"></div>
+      <div class="reticle-ring"></div>
+      <div id="reticle-prompt" class="reticle-prompt hidden"></div>
+    </div>
+
+    <!-- Bottom Gamepad & Controls Legend Bar -->
+    <div id="gamepad-hud-bar" class="gamepad-hud-bar">
+      <div class="gamepad-status-badge">
+        <span class="pad-icon">🎮</span>
+        <span id="gamepad-hud-name">Controller</span>
+      </div>
+      <div class="gamepad-hints">
+        <span class="hint-pill"><kbd class="btn-stick">L-Stick / WASD</kbd> Move</span>
+        <span class="hint-pill"><kbd class="btn-stick">R-Stick</kbd> Look</span>
+        <span class="hint-pill"><kbd class="btn-a">A</kbd> Interact</span>
+        <span class="hint-pill"><kbd class="btn-y">Y</kbd> Grimoire</span>
+        <span class="hint-pill"><kbd class="btn-shoulder">LB / RB</kbd> Pages / Cmd</span>
+        <span class="hint-pill"><kbd class="btn-x">X</kbd> Party / Song</span>
+        <span class="hint-pill"><kbd class="btn-b">B</kbd> Back / Defend</span>
+      </div>
+    </div>
 
     <!-- Floating 3D Interaction Notification -->
     <div id="toast-notification" class="toast hidden"></div>

@@ -143,45 +143,73 @@ export class CombatArena {
     this.commandPanel.position.set(0, 0.95, -1.2);
     this.arenaGroup.add(this.commandPanel);
 
-    const buttonConfigs = [
+    this.selectedButtonIndex = 0;
+    this.buttonConfigs = [
       { label: '⚔️ Attack', action: 'ATTACK', pos: [-0.4, 0.15, 0] },
       { label: '🎵 Bard Song', action: 'SONG', pos: [0.4, 0.15, 0] },
       { label: '✨ Cast Spell', action: 'SPELL', pos: [-0.4, -0.12, 0] },
       { label: '🛡️ Defend', action: 'DEFEND', pos: [0.4, -0.12, 0] },
       { label: '🏃 Flee Run', action: 'RUN', pos: [0, -0.36, 0] }
     ];
+    this.buttonData = [];
 
-    buttonConfigs.forEach(cfg => {
+    this.buttonConfigs.forEach((cfg, idx) => {
       const canvas = document.createElement('canvas');
       canvas.width = 240;
       canvas.height = 70;
       const ctx = canvas.getContext('2d');
-
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-      ctx.strokeStyle = '#f3cf65';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.roundRect(6, 6, 228, 58, 10);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#f3cf65';
-      ctx.font = 'bold 22px Georgia, serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(cfg.label, 120, 42);
-
       const tex = new THREE.CanvasTexture(canvas);
+
       const btnMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(0.34, 0.11),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true })
       );
       btnMesh.position.set(...cfg.pos);
-      btnMesh.userData = { isCombatButton: true, action: cfg.action };
+      btnMesh.userData = { isCombatButton: true, action: cfg.action, buttonIndex: idx };
 
       this.commandPanel.add(btnMesh);
       this.interactableButtons.push(btnMesh);
+      this.buttonData.push({ canvas, ctx, tex, cfg, mesh: btnMesh });
+    });
+
+    this.updateButtonVisuals();
+  }
+
+  updateButtonVisuals() {
+    this.buttonData.forEach((b, idx) => {
+      const isSelected = idx === this.selectedButtonIndex;
+      const ctx = b.ctx;
+      ctx.clearRect(0, 0, 240, 70);
+
+      // Background
+      ctx.fillStyle = isSelected ? '#f3cf65' : 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = isSelected ? '#ffffff' : '#f3cf65';
+      ctx.lineWidth = isSelected ? 6 : 3;
+      ctx.beginPath();
+      ctx.roundRect(6, 6, 228, 58, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      // Label
+      ctx.fillStyle = isSelected ? '#0f172a' : '#f3cf65';
+      ctx.font = 'bold 22px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.cfg.label, 120, 42);
+
+      b.tex.needsUpdate = true;
     });
   }
+
+  cycleCommand(delta = 1) {
+    this.selectedButtonIndex = (this.selectedButtonIndex + delta + this.buttonConfigs.length) % this.buttonConfigs.length;
+    this.updateButtonVisuals();
+    return this.getSelectedAction();
+  }
+
+  getSelectedAction() {
+    return this.buttonConfigs[this.selectedButtonIndex].action;
+  }
+
 
   // Enter Dedicated Combat Zone
   enterCombat(party, monsters) {
@@ -374,8 +402,9 @@ export class CombatArena {
 
     if (action !== 'RUN') {
       if (this.combatEngine.isVictory()) {
-        this.addLogLine('🏆 VICTORY! ...');
-        setTimeout(() => this.leaveCombat(true), 2500);
+        const rewardResult = this.combatEngine.calculateAndAwardVictoryRewards();
+        rewardResult.messages.forEach(msg => this.addLogLine(msg));
+        setTimeout(() => this.leaveCombat(true), 3200);
       } else if (this.combatEngine.isPartyWiped()) {
         this.addLogLine('💀 The party has been defeated...');
         setTimeout(() => this.leaveCombat(false), 2500);

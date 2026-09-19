@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { getKnownSpells, getSpellsBySchoolAndLevel, SpellSchool } from '../../data/SpellDatabase.js';
 import { BardSongs } from '../../data/BardSongs.js';
+import { getXPForNextLevel } from '../../data/RaceClassData.js';
 export class PalmBookMenu {
-  constructor(scene, camera, onSpellTested) {
+  constructor(scene, camera, onSpellTested, onRestartGame = null) {
     this.scene = scene;
     this.camera = camera;
     this.onSpellTested = onSpellTested;
+    this.onRestartGame = onRestartGame;
 
     this.isOpen = false;
     this.bookGroup = new THREE.Group();
@@ -15,8 +17,15 @@ export class PalmBookMenu {
     this.inspectedHeroIndex = null; // null or 0..3 for detailed inspection view
 
     this.leftPalmState = 'DOWN';
+    this.activeHand = null;
     this.party = [];
     this.skaraBraeGrid = null;
+    this.summonProgress = 0.0;
+    this.animState = 'CLOSED'; // 'CLOSED', 'SUMMONING', 'OPEN', 'DISPELLING'
+    this.animProgress = 0.0;   // 0.0 = completely closed, 1.0 = fully summoned & open
+    this.lastHandPos = new THREE.Vector3();
+    this.lastDirToHead = new THREE.Vector3(0, 0, 1);
+    this.enabled = false; // Suppressed until entering Garth's Shop
 
     // Interactive button bounding regions on the book canvas
     this.canvasButtons = [];
@@ -25,48 +34,62 @@ export class PalmBookMenu {
     this.scene.add(this.bookGroup);
   }
 
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    if (!enabled && this.isOpen) {
+      this.toggleBook(false);
+      this.leftPalmState = 'DOWN';
+    }
+  }
+
   initBookMesh() {
-    // 3D Leather Grimoire Cover & Parchment Pages
+    // 3D Leather Grimoire Cover & Parchment Pages (Calibrated Grimoire Spread: 0.60m W x 0.42m H - 25% scaled down)
     const coverMat = new THREE.MeshStandardMaterial({ color: 0x4c1d95, roughness: 0.5 }); // Deep Royal Purple
     const pageMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.8 });  // Aged Parchment
     const goldTrim = new THREE.MeshStandardMaterial({ color: 0xf3cf65, metalness: 0.8, roughness: 0.2 });
 
-    // Covers
-    const leftCover = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.02), coverMat);
-    leftCover.position.set(-0.16, 0, 0);
+    // Covers (0.30m x 0.42m each side = 0.60m total cover width)
+    const leftCover = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.42, 0.016), coverMat);
+    leftCover.position.set(-0.15, 0, 0);
     this.bookGroup.add(leftCover);
 
-    const rightCover = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.02), coverMat);
-    rightCover.position.set(0.16, 0, 0);
+    const rightCover = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.42, 0.016), coverMat);
+    rightCover.position.set(0.15, 0, 0);
     this.bookGroup.add(rightCover);
 
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.42), goldTrim);
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.42), goldTrim);
     spine.position.set(0, 0, -0.01);
     this.bookGroup.add(spine);
 
-    // Book Pages
-    const leftPages = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.40, 0.03), pageMat);
-    leftPages.position.set(-0.15, 0, 0.02);
+    // Book Pages (0.285m x 0.40m each side)
+    const leftPages = new THREE.Mesh(new THREE.BoxGeometry(0.285, 0.40, 0.02), pageMat);
+    leftPages.position.set(-0.145, 0, 0.012);
     this.bookGroup.add(leftPages);
 
-    const rightPages = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.40, 0.03), pageMat);
-    rightPages.position.set(0.15, 0, 0.02);
+    const rightPages = new THREE.Mesh(new THREE.BoxGeometry(0.285, 0.40, 0.02), pageMat);
+    rightPages.position.set(0.145, 0, 0.012);
     this.bookGroup.add(rightPages);
 
-    // High Resolution Canvas for 2-Page Spread
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 420;
-    this.pageCtx = canvas.getContext('2d');
-    this.pageTexture = new THREE.CanvasTexture(canvas);
+    // High Resolution Retina Canvas for 2-Page Spread (1280 x 840)
+    if (typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 840;
+      this.pageCtx = canvas.getContext('2d');
+      this.pageTexture = new THREE.CanvasTexture(canvas);
+    } else {
+      this.pageCtx = null;
+      this.pageTexture = new THREE.Texture();
+    }
 
     const pageTextMat = new THREE.MeshBasicMaterial({
       map: this.pageTexture,
-      transparent: true
+      transparent: true,
+      side: THREE.DoubleSide
     });
 
-    this.textMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.60, 0.40), pageTextMat);
-    this.textMesh.position.set(0, 0, 0.038);
+    this.textMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.57, 0.40), pageTextMat);
+    this.textMesh.position.set(0, 0, 0.025);
     this.bookGroup.add(this.textMesh);
 
     this.renderBook();
@@ -84,7 +107,9 @@ export class PalmBookMenu {
   renderBook() {
     if (!this.pageCtx) return;
     const ctx = this.pageCtx;
-    ctx.clearRect(0, 0, 640, 420);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, 1280, 840);
+    ctx.scale(2, 2);
     this.canvasButtons = [];
 
     // Background Book Spine Line
@@ -95,10 +120,13 @@ export class PalmBookMenu {
     ctx.lineTo(320, 410);
     ctx.stroke();
 
-    // Top Navigation Tabs: [ Page 1: Heroes ] [ Page 2: Automap ] [ Page 3: Spells ]
+    // Top Navigation Tabs: [ Page 1: Heroes ] [ Page 2: Automap ] [ Page 3: Spells ] ... [ 🔄 C64 Desk ]
     this.drawTab(ctx, 20, 10, 95, 30, '1. Heroes', this.currentPage === 1);
     this.drawTab(ctx, 120, 10, 95, 30, '2. Automap', this.currentPage === 2);
     this.drawTab(ctx, 220, 10, 95, 30, '3. Spells', this.currentPage === 3);
+
+    // Top Right Restart / Return to C64 Desk Button
+    this.drawRestartTab(ctx, 510, 10, 110, 30);
 
     // Page Content Rendering
     if (this.currentPage === 1) {
@@ -114,6 +142,30 @@ export class PalmBookMenu {
     }
 
     this.pageTexture.needsUpdate = true;
+  }
+
+  drawRestartTab(ctx, x, y, w, h) {
+    ctx.fillStyle = 'rgba(185, 28, 28, 0.85)';
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🔄 C64 Desk', x + w / 2, y + 20);
+
+    this.canvasButtons.push({
+      x, y, w, h,
+      action: () => {
+        if (this.onRestartGame) {
+          this.onRestartGame();
+        }
+      }
+    });
   }
 
   drawTab(ctx, x, y, w, h, label, isActive) {
@@ -139,6 +191,294 @@ export class PalmBookMenu {
         this.renderBook();
       }
     });
+  }
+
+  // Handle Raycasting Pointer Clicks on Book Canvas Buttons
+  handleCanvasClick(uv, showToast) {
+    if (!uv) return;
+
+    // Convert UV coordinates (0..1) to Canvas pixels (640 x 420)
+    const px = uv.x * 640;
+    const py = (1 - uv.y) * 420;
+
+    this.canvasButtons.forEach(btn => {
+      if (px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+        btn.action();
+      }
+    });
+  }
+
+  /**
+   * Evaluates if a given VR controller or hand is supinating / palm turned upwards towards head
+   */
+  _checkControllerPalmUp(controller, isLeftHand, headPos) {
+    if (!controller) return { isPalmUp: false, isPalmDown: true, handPos: null, dirToHead: null };
+
+    const handPos = new THREE.Vector3();
+    if (controller.joints && controller.joints['wrist'] && typeof controller.joints['wrist'].getWorldPosition === 'function') {
+      controller.joints['wrist'].getWorldPosition(handPos);
+    } else {
+      controller.getWorldPosition(handPos);
+    }
+
+    const handQuat = new THREE.Quaternion();
+    controller.getWorldQuaternion(handQuat);
+
+    // Vector from hand to head
+    const dirToHead = headPos.clone().sub(handPos).normalize();
+    const distToHead = handPos.distanceTo(headPos);
+
+    // Hand should be within comfortable viewing distance (0.12m to 0.88m from head)
+    if (distToHead < 0.12 || distToHead > 0.88) {
+      return { isPalmUp: false, isPalmDown: true, handPos, dirToHead };
+    }
+
+    // Palm surface normal in controller/hand local coordinates:
+    // When turning hand over from palm down to palm up facing ceiling/head:
+    // Left hand palm faces +X (inward to the right) and +Y (tilted up)
+    // Right hand palm faces -X (inward to the left) and +Y (tilted up)
+    const localPalm = isLeftHand 
+      ? new THREE.Vector3(0.7, 0.6, 0.2).normalize()
+      : new THREE.Vector3(-0.7, 0.6, 0.2).normalize();
+
+    const palmNormalWorld = localPalm.applyQuaternion(handQuat);
+    const topVectorWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(handQuat);
+
+    const palmUpDot = palmNormalWorld.y;
+    const palmHeadDot = palmNormalWorld.dot(dirToHead);
+    const topUpDot = topVectorWorld.y;
+    const topHeadDot = topVectorWorld.dot(dirToHead);
+
+    const upScore = Math.max(palmUpDot, topUpDot * 0.85);
+    const headScore = Math.max(palmHeadDot, topHeadDot * 0.85);
+
+    // Hysteresis thresholds for natural gesture
+    // Turning hand over at regular speed from palm down -> palm up
+    const isPalmUp = upScore > 0.28 && headScore > 0.12;
+    const isPalmDown = upScore < 0.14 || headScore < 0.06;
+
+    return { isPalmUp, isPalmDown, handPos, dirToHead };
+  }
+
+  /**
+   * Update gesture and drive summoning / dispelling animations per frame.
+   * Turning hand from Palm Down -> Palm Up plays summoning animation.
+   * Dropping Palm Up pose plays dispelling animation.
+   */
+  updateGesture(leftController, rightController = null, onHaptics = null, deltaTime = 0.016, hands = null) {
+    const dt = Math.min(deltaTime || 0.016, 0.1);
+
+    if (!this.enabled) {
+      if (this.isOpen || this.animState !== 'CLOSED') {
+        this.isOpen = false;
+        this.animState = 'CLOSED';
+        this.animProgress = 0.0;
+        this.bookGroup.visible = false;
+        this.leftPalmState = 'DOWN';
+      }
+      return;
+    }
+
+    const headPos = new THREE.Vector3();
+    this.camera.getWorldPosition(headPos);
+
+    // Prefer active hand tracking if provided, else fallback to controllers
+    const leftSource = (hands && hands[0]) || leftController;
+    const rightSource = (hands && hands[1]) || rightController;
+
+    const leftCheck = this._checkControllerPalmUp(leftSource, true, headPos);
+    const rightCheck = this._checkControllerPalmUp(rightSource, false, headPos);
+
+    let activeCheck = null;
+    let isLeft = true;
+
+    if (leftCheck.isPalmUp) {
+      activeCheck = leftCheck;
+      isLeft = true;
+    } else if (rightCheck.isPalmUp) {
+      activeCheck = rightCheck;
+      isLeft = false;
+    } else if (this.leftPalmState === 'UP') {
+      activeCheck = this.activeHand === 'right' ? rightCheck : leftCheck;
+    } else {
+      activeCheck = leftCheck;
+    }
+
+    // Gesture State Machine:
+    // From Palm Down -> Turn hand over to Palm Up -> Trigger Summoning Animation
+    // From Palm Up -> Drop hand pose -> Trigger Dispelling Animation
+    if (activeCheck && activeCheck.isPalmUp) {
+      if (this.leftPalmState !== 'UP') {
+        this.leftPalmState = 'UP';
+        this.activeHand = isLeft ? 'left' : 'right';
+        this.animState = 'SUMMONING';
+        this.isOpen = true;
+        this.bookGroup.visible = true;
+        this.renderBook();
+
+        if (activeCheck.handPos) {
+          this.lastHandPos.copy(activeCheck.handPos);
+          if (activeCheck.dirToHead) this.lastDirToHead.copy(activeCheck.dirToHead);
+        }
+
+        if (onHaptics) onHaptics(0.4, 80);
+      }
+    } else if (activeCheck && activeCheck.isPalmDown) {
+      if (this.leftPalmState === 'UP') {
+        this.leftPalmState = 'DOWN';
+        this.activeHand = null;
+        this.animState = 'DISPELLING';
+        if (onHaptics) onHaptics(0.2, 40);
+      }
+    }
+
+    if (activeCheck && activeCheck.handPos) {
+      this.lastHandPos.copy(activeCheck.handPos);
+      if (activeCheck.dirToHead) this.lastDirToHead.copy(activeCheck.dirToHead);
+    }
+
+    // Process Summoning & Dispelling Animations
+    if (this.animState === 'SUMMONING') {
+      this.animProgress = Math.min(1.0, this.animProgress + dt * 3.0); // ~0.33s smooth summon animation
+      const t = 1 - Math.pow(1 - this.animProgress, 3); // Ease-out cubic
+
+      // Hand origin position (where the book materializes just above palm)
+      const handHoverPos = this.lastHandPos.clone().add(new THREE.Vector3(0, 0.08, 0)).addScaledVector(this.lastDirToHead, 0.04);
+      // Ergonomic reading position in front of face (~0.50m from eyes, lowered 6cm)
+      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.50).add(new THREE.Vector3(0, -0.06, 0));
+
+      const targetPos = new THREE.Vector3().lerpVectors(handHoverPos, readingPos, t);
+      const currentScale = THREE.MathUtils.lerp(0.08, 1.0, t);
+
+      this.bookGroup.position.lerp(targetPos, 0.28);
+      this.bookGroup.scale.set(currentScale, currentScale, currentScale);
+      this.bookGroup.lookAt(headPos);
+
+      if (this.animProgress >= 1.0) {
+        this.animState = 'OPEN';
+        this.bookGroup.scale.set(1.0, 1.0, 1.0);
+      }
+    } else if (this.animState === 'OPEN') {
+      // While open and held up, track comfortable reading position
+      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.50).add(new THREE.Vector3(0, -0.06, 0));
+      this.bookGroup.position.lerp(readingPos, 0.22);
+      this.bookGroup.scale.set(1.0, 1.0, 1.0);
+      this.bookGroup.lookAt(headPos);
+    } else if (this.animState === 'DISPELLING') {
+      this.animProgress = Math.max(0.0, this.animProgress - dt * 3.8); // ~0.26s smooth dispel animation
+      const t = Math.pow(this.animProgress, 2); // Ease-in quad
+
+      const handHoverPos = this.lastHandPos.clone().add(new THREE.Vector3(0, 0.06, 0));
+      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.50).add(new THREE.Vector3(0, -0.06, 0));
+
+      const targetPos = new THREE.Vector3().lerpVectors(handHoverPos, readingPos, t);
+      const currentScale = THREE.MathUtils.lerp(0.02, 1.0, t);
+
+      this.bookGroup.position.lerp(targetPos, 0.35);
+      this.bookGroup.scale.set(currentScale, currentScale, currentScale);
+      this.bookGroup.lookAt(headPos);
+
+      if (this.animProgress <= 0.001) {
+        this.animState = 'CLOSED';
+        this.isOpen = false;
+        this.bookGroup.visible = false;
+        this.bookGroup.scale.set(0.001, 0.001, 0.001);
+      }
+    }
+  }
+
+  toggleBook(open, handPos = null, headPos = null) {
+    if (!this.enabled && open) return;
+    this.isOpen = open;
+    if (open) {
+      this.animState = 'SUMMONING';
+      this.animProgress = 0.0;
+      this.bookGroup.visible = true;
+      this.renderBook();
+      if (handPos && headPos) {
+        this.lastHandPos.copy(handPos);
+        const dirToHead = headPos.clone().sub(handPos).normalize();
+        this.lastDirToHead.copy(dirToHead);
+        const initialPos = handPos.clone().add(new THREE.Vector3(0, 0.08, 0)).addScaledVector(dirToHead, 0.04);
+        this.bookGroup.position.copy(initialPos);
+        this.bookGroup.scale.set(0.08, 0.08, 0.08);
+        this.bookGroup.lookAt(headPos);
+      }
+    } else {
+      this.animState = 'DISPELLING';
+    }
+  }
+
+  /**
+   * Toggle the 3D Grimoire in Desktop / Gamepad / VR Button mode.
+   * Floating directly in front of the player camera at ergonomic reading distance.
+   * @param {boolean|null} [open=null]
+   */
+  toggleBookDesktop(open = null) {
+    if (!this.enabled) {
+      if (this.isOpen || this.animState !== 'CLOSED') {
+        this.isOpen = false;
+        this.animState = 'CLOSED';
+        this.animProgress = 0.0;
+        this.bookGroup.visible = false;
+        this.leftPalmState = 'DOWN';
+      }
+      return;
+    }
+    const nextState = open !== null ? open : !this.isOpen;
+    this.isOpen = nextState;
+    if (nextState) {
+      this.animState = 'OPEN';
+      this.animProgress = 1.0;
+      this.bookGroup.visible = true;
+      this.leftPalmState = 'BUTTON_OPEN';
+      this.renderBook();
+      this.positionInFrontOfCamera();
+    } else {
+      this.animState = 'CLOSED';
+      this.animProgress = 0.0;
+      this.bookGroup.visible = false;
+      this.leftPalmState = 'DOWN';
+    }
+  }
+
+  positionInFrontOfCamera() {
+    // 0.50m in front of camera, slightly lowered, facing camera
+    const headPos = new THREE.Vector3();
+    const headQuat = new THREE.Quaternion();
+    this.camera.getWorldPosition(headPos);
+    this.camera.getWorldQuaternion(headQuat);
+
+    const forward = new THREE.Vector3(0, -0.06, -0.50).applyQuaternion(headQuat);
+    this.bookGroup.position.copy(headPos).add(forward);
+    this.bookGroup.scale.set(1.0, 1.0, 1.0);
+    this.bookGroup.lookAt(headPos);
+  }
+
+  updateDesktop() {
+    if (this.isOpen && this.leftPalmState !== 'UP') {
+      this.positionInFrontOfCamera();
+    }
+  }
+
+  nextPage() {
+    this.currentPage = (this.currentPage % 3) + 1;
+    this.inspectedHeroIndex = null;
+    this.renderBook();
+  }
+
+  prevPage() {
+    this.currentPage = this.currentPage === 1 ? 3 : this.currentPage - 1;
+    this.inspectedHeroIndex = null;
+    this.renderBook();
+  }
+
+  setPage(pageNum) {
+    if (pageNum >= 1 && pageNum <= 3) {
+      this.currentPage = pageNum;
+      this.inspectedHeroIndex = null;
+      this.renderBook();
+    }
   }
 
   // PAGE 1: HERO LIST VIEW (2 Heroes per Page Spread)
@@ -219,9 +559,9 @@ export class PalmBookMenu {
 
     ctx.fillStyle = '#f8fafc';
     ctx.font = '14px sans-serif';
-    ctx.fillText(`Class: ${hero.race} ${hero.class}`, 160, 115);
-    ctx.fillText(`XP: ${hero.xp || 1200}`, 160, 140);
-    ctx.fillText(`Gold: ${hero.gold || 150} GP`, 160, 165);
+    ctx.fillText(`Class: ${hero.race} ${hero.class} (Lvl ${hero.level || 1})`, 160, 115);
+    ctx.fillText(`XP: ${(hero.xp || 0).toLocaleString()} / ${getXPForNextLevel(hero.class, hero.level || 1).toLocaleString()}`, 160, 140);
+    ctx.fillText(`Gold: ${(hero.gold || 0).toLocaleString()} GP`, 160, 165);
     this.drawStatusBadge(ctx, 160, 175, hero.status);
 
     // Attributes Box
@@ -236,77 +576,157 @@ export class PalmBookMenu {
     ctx.fillText(`ST: ${hero.st || 15}  IQ: ${hero.iq || 14}  DX: ${hero.dx || 16}`, 45, 305);
     ctx.fillText(`CN: ${hero.cn || 14}  LK: ${hero.lk || 15}`, 45, 335);
 
-    // RIGHT PAGE: Inventory & Known Spells
+    // RIGHT PAGE: Equipped Gear & Backpack
     ctx.fillStyle = '#3b0764';
-    ctx.font = 'bold 20px Georgia, serif';
-    ctx.fillText('🎒 INVENTORY & GEAR', 350, 72);
+    ctx.font = 'bold 18px Georgia, serif';
+    ctx.fillText('⚔️ EQUIPPED GEAR', 350, 72);
 
-    const inv = hero.inventory || ['Broadsword', 'Iron Shield', 'Leather Armor', 'Brass Torch'];
-    inv.forEach((item, i) => {
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = '14px sans-serif';
-      ctx.fillText(`• ${item}`, 350, 105 + i * 28);
+    const eq = hero.equipped || {};
+    const equipLines = [
+      `Wpn: ${eq.weapon ? (eq.weapon.name || eq.weapon) : 'Fists'}`,
+      `Shld: ${eq.shield ? (eq.shield.name || eq.shield) : 'None'}`,
+      `Armr: ${eq.armor ? (eq.armor.name || eq.armor) : 'None (AC 10)'}`,
+      `Helm: ${eq.helm ? (eq.helm.name || eq.helm) : 'None'}`,
+      `Glvs: ${eq.gloves ? (eq.gloves.name || eq.gloves) : 'None'}`
+    ];
+    if (eq.instrument) equipLines.push(`Inst: ${eq.instrument.name || eq.instrument}`);
+
+    equipLines.forEach((line, i) => {
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`• ${line}`, 350, 95 + i * 20);
     });
 
     ctx.fillStyle = '#3b0764';
-    ctx.font = 'bold 20px Georgia, serif';
-    ctx.fillText('✨ KNOWN SPELLS / TUNES', 350, 245);
+    ctx.font = 'bold 18px Georgia, serif';
+    ctx.fillText('🎒 BACKPACK ITEMS', 350, 220);
 
-    const spells = hero.spells || ['Mage Flame', 'Air Armor', 'Vorpal Plating'];
-    spells.forEach((sp, i) => {
-      ctx.fillStyle = '#a855f7';
-      ctx.font = '14px sans-serif';
-      ctx.fillText(`• ${sp}`, 350, 278 + i * 28);
+    const inv = hero.inventory || [];
+    if (inv.length === 0) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'italic 13px sans-serif';
+      ctx.fillText('(Backpack is empty)', 350, 245);
+    } else {
+      inv.slice(0, 5).forEach((item, i) => {
+        const itemName = typeof item === 'string' ? item : item.name;
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '13px sans-serif';
+        ctx.fillText(`• ${itemName}`, 350, 245 + i * 20);
+      });
+    }
+
+    ctx.fillStyle = '#3b0764';
+    ctx.font = 'bold 16px Georgia, serif';
+    ctx.fillText('✨ SPELLS / TUNES', 350, 350);
+
+    const spells = hero.spells || (hero.class === 'Bard' ? ["Sir Robin Tune"] : ['Mage Flame', 'Air Armor']);
+    spells.slice(0, 2).forEach((sp, i) => {
+      ctx.fillStyle = '#c084fc';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`• ${sp}`, 350, 372 + i * 18);
     });
   }
 
-  // DYNAMIC HERO PORTRAIT REFLECTING DAMAGED / POISONED / CURSED STATE
+  // DYNAMIC HERO PORTRAIT REFLECTING 8 CANONICAL BT1 CONDITIONS (ALIVE, POIS, OLD, DEAD, STON, PARA, POSS, NUTS)
   drawHeroPortrait(ctx, x, y, w, h, hero) {
-    const status = hero.status || 'OK';
+    const rawStatus = (hero.condition || hero.status || 'ALIVE').toUpperCase();
+    const isDead = rawStatus === 'DEAD' || (hero.hp <= 0 && hero.hp !== undefined);
+    const status = isDead ? 'DEAD' :
+                   (rawStatus === 'POIS' || rawStatus === 'POISONED') ? 'POIS' :
+                   (rawStatus === 'OLD' || rawStatus === 'WITHERED') ? 'OLD' :
+                   (rawStatus === 'PARA' || rawStatus === 'PARALYZED') ? 'PARA' :
+                   (rawStatus === 'POSS' || rawStatus === 'POSSESSED') ? 'POSS' :
+                   (rawStatus === 'NUTS' || rawStatus === 'INSANE') ? 'NUTS' :
+                   (rawStatus === 'STON' || rawStatus === 'STONED') ? 'STON' :
+                   (hero.hp < (hero.maxHp || hero.hp)) ? 'DAMAGED' : 'ALIVE';
 
     // Portrait Background Frame
-    ctx.fillStyle = '#1e1b4b';
+    ctx.fillStyle = status === 'DEAD' ? '#090d16' : '#1e1b4b';
     ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = status === 'POISONED' ? '#22c55e' : status === 'CURSED' ? '#a855f7' : status === 'DAMAGED' ? '#ef4444' : '#f3cf65';
+
+    const borderCol = status === 'DEAD' ? '#ef4444' :
+                      status === 'POIS' ? '#22c55e' :
+                      status === 'PARA' ? '#facc15' :
+                      status === 'POSS' ? '#e11d48' :
+                      status === 'NUTS' ? '#a855f7' :
+                      status === 'OLD' ? '#f97316' :
+                      status === 'STON' ? '#94a3b8' :
+                      status === 'DAMAGED' ? '#ef4444' : '#f3cf65';
+    ctx.strokeStyle = borderCol;
     ctx.lineWidth = 3;
     ctx.strokeRect(x, y, w, h);
 
     // Basic Face Silhouettes
-    ctx.fillStyle = '#fde047';
+    ctx.fillStyle = status === 'STON' ? '#64748b' : status === 'DEAD' ? '#475569' : '#fde047';
     ctx.beginPath();
     ctx.arc(x + w / 2, y + h * 0.4, w * 0.28, 0, Math.PI * 2);
     ctx.fill();
 
-    // WOW FACTOR: Dynamic State Overlay Effects
-    if (status === 'POISONED') {
-      // Sickly Green Tint & Venom Skull Emblem
+    // Dynamic State Overlay Effects
+    if (status === 'DEAD') {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('💀 DEAD', x + 5, y + h - 10);
+    } else if (status === 'POIS') {
       ctx.fillStyle = 'rgba(34, 197, 94, 0.45)';
       ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#22c55e';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('☠️ POISON', x + 5, y + h - 10);
-    } else if (status === 'CURSED') {
-      // Dark Purple Shadow Aura
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('☠️ POIS', x + 5, y + h - 10);
+    } else if (status === 'PARA') {
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.45)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#facc15';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('⚡ PARA', x + 5, y + h - 10);
+    } else if (status === 'POSS') {
+      ctx.fillStyle = 'rgba(225, 29, 72, 0.55)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#f43f5e';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('😈 POSS', x + 5, y + h - 10);
+    } else if (status === 'NUTS') {
       ctx.fillStyle = 'rgba(168, 85, 247, 0.5)';
       ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#c084fc';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('🔮 CURSE', x + 5, y + h - 10);
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('🌀 NUTS', x + 5, y + h - 10);
+    } else if (status === 'OLD') {
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.45)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#fb923c';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('🍂 OLD', x + 5, y + h - 10);
+    } else if (status === 'STON') {
+      ctx.fillStyle = 'rgba(100, 116, 139, 0.6)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('🗿 STON', x + 5, y + h - 10);
     } else if (status === 'DAMAGED') {
-      // Blood Splatters & Bruises
       ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
       ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#ef4444';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('🩸 INJURED', x + 5, y + h - 10);
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('🩸 HURT', x + 5, y + h - 10);
     }
   }
 
   drawStatusBadge(ctx, x, y, status) {
-    const col = status === 'POISONED' ? '#22c55e' : status === 'CURSED' ? '#a855f7' : status === 'DAMAGED' ? '#ef4444' : '#10b981';
+    const s = String(status || 'ALIVE').toUpperCase();
+    const col = s === 'DEAD' ? '#ef4444' :
+                (s === 'POIS' || s === 'POISONED') ? '#22c55e' :
+                (s === 'PARA' || s === 'PARALYZED') ? '#facc15' :
+                (s === 'POSS' || s === 'POSSESSED') ? '#f43f5e' :
+                (s === 'NUTS' || s === 'INSANE') ? '#a855f7' :
+                (s === 'OLD' || s === 'WITHERED') ? '#f97316' :
+                (s === 'STON' || s === 'STONED') ? '#94a3b8' :
+                s === 'DAMAGED' ? '#ef4444' : '#10b981';
     ctx.fillStyle = col;
     ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(`STATUS: ${status || 'OK'}`, x, y + 14);
+    ctx.fillText(`STATUS: ${s}`, x, y + 14);
   }
 
   // PAGE 2: DIEGETIC AUTOMAP (Draws exploration grid, labels locations)
@@ -431,53 +851,5 @@ export class PalmBookMenu {
       });
     });
   }
-
-  // Handle Raycasting Pointer Clicks on Book Canvas Buttons
-  handleCanvasClick(uv, showToast) {
-    if (!uv) return;
-
-    // Convert UV coordinates (0..1) to Canvas pixels (640 x 420)
-    const px = uv.x * 640;
-    const py = (1 - uv.y) * 420;
-
-    this.canvasButtons.forEach(btn => {
-      if (px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
-        btn.action();
-      }
-    });
-  }
-
-  updateGesture(controllerOrHand) {
-    if (!controllerOrHand) return;
-
-    const euler = new THREE.Euler().setFromQuaternion(controllerOrHand.quaternion);
-    const roll = euler.z;
-
-    const isPalmUp = Math.abs(roll) > Math.PI * 0.55;
-
-    if (isPalmUp && this.leftPalmState === 'DOWN') {
-      this.leftPalmState = 'UP';
-      this.toggleBook(true, controllerOrHand.position);
-    } else if (!isPalmUp && this.leftPalmState === 'UP') {
-      this.leftPalmState = 'DOWN';
-      this.toggleBook(false);
-    }
-
-    if (this.isOpen && controllerOrHand) {
-      this.bookGroup.position.copy(controllerOrHand.position).add(new THREE.Vector3(0, 0.25, -0.1));
-      this.bookGroup.lookAt(this.camera.position);
-    }
-  }
-
-  toggleBook(open, handPos = null) {
-    this.isOpen = open;
-    this.bookGroup.visible = open;
-    if (open) {
-      this.renderBook();
-      if (handPos) {
-        this.bookGroup.position.copy(handPos).add(new THREE.Vector3(0, 0.25, -0.1));
-        this.bookGroup.lookAt(this.camera.position);
-      }
-    }
-  }
 }
+

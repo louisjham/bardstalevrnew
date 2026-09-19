@@ -12,14 +12,15 @@ export class GameDirector {
   }
 
   /**
-   * Generate a combat encounter appropriate for the party's level.
+   * Generate a combat encounter appropriate for the party's level and time of day.
    * Uses MonsterDatabase for authentic Bard's Tale monsters.
    * @param {number} partyLevel - Average party level
    * @param {string} [location='streets'] - 'streets' | 'sewers' | 'catacombs' | 'castle' | 'tower'
+   * @param {boolean} [isNight=false] - Whether it is currently night
    * @returns {object[]} Array of monster instances ready for CombatEngine
    */
-  generateMonsterEncounter(partyLevel = 1, location = 'streets') {
-    const encounter = generateEncounter(partyLevel, location);
+  generateMonsterEncounter(partyLevel = 1, location = 'streets', isNight = false) {
+    const encounter = generateEncounter(partyLevel, location, isNight);
     const monsters = flattenEncounterToMonsters(encounter);
 
     // Apply modern anti-grind XP/gold multipliers
@@ -31,19 +32,21 @@ export class GameDirector {
     this.encounterHistory.push({
       timestamp: Date.now(),
       monsters: monsters.map(m => m.name),
-      level: partyLevel
+      level: partyLevel,
+      isNight
     });
 
     return monsters;
   }
 
   /**
-   * Legacy compatibility wrapper — old code calls generateEncounter(level).
+   * Compatibility wrapper accepting partyLevel and optional isNight.
    * @param {number} partyLevel
+   * @param {boolean} [isNight=false]
    * @returns {object[]}
    */
-  generateEncounter(partyLevel = 1) {
-    return this.generateMonsterEncounter(partyLevel, 'streets');
+  generateEncounter(partyLevel = 1, isNight = false) {
+    return this.generateMonsterEncounter(partyLevel, 'streets', isNight);
   }
 
   calculateLoot(monsters) {

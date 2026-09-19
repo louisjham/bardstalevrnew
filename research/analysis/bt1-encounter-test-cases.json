@@ -1,0 +1,58 @@
+{
+  "testSuites": [
+    {
+      "name": "Skara Brae Daytime Streets",
+      "context": {
+        "zone": "streets",
+        "isNight": false,
+        "trigger": "movement"
+      },
+      "expectedRules": {
+        "minGroups": 1,
+        "maxGroups": 1,
+        "allowedArchetypeIds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+        "excludedArchetypeIds": [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+      }
+    },
+    {
+      "name": "Skara Brae Nighttime Streets",
+      "context": {
+        "zone": "streets",
+        "isNight": true,
+        "trigger": "movement"
+      },
+      "expectedRules": {
+        "minGroups": 1,
+        "maxGroups": 4,
+        "allowedArchetypeIds": [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+      }
+    },
+    {
+      "name": "Tavern Wine Cellar",
+      "context": {
+        "zone": "wine_cellar",
+        "isNight": false,
+        "trigger": "movement"
+      },
+      "expectedRules": {
+        "minGroups": 1,
+        "maxGroups": 3,
+        "allowedArchetypeIds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19]
+      }
+    },
+    {
+      "name": "Kylearan's 99 Berserkers (Forced Tile)",
+      "context": {
+        "zone": "kylearans_tower",
+        "mapCoord": { "x": 0, "y": 15 },
+        "trigger": "forcedTile"
+      },
+      "expectedRules": {
+        "exactGroups": 4,
+        "totalMonsters": 396,
+        "archetypeId": 65,
+        "archetypeName": "Berserker"
+      }
+    }
+  ]
+}

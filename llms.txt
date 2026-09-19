@@ -1,0 +1,143 @@
+# Bard's Tale XR
+
+> A browser-based, Three.js/WebXR dungeon RPG inspired by classic first-person party-based fantasy games. The project must remain playable on desktop without a headset, support WebXR emulation for development, and eventually run on standalone XR hardware. Preserve data-driven gameplay rules and keep XR presentation separate from game state and combat logic.
+
+## Read first
+
+Before changing code:
+
+1. Read this file.
+2. Read every linked local document relevant to the requested task.
+3. Inspect the current modules named by those docs before proposing implementation.
+4. Make the smallest change that satisfies the request.
+5. Do not refactor unrelated systems.
+6. Run required tests and `npm run build`.
+7. Report files changed, validation results, manual test steps, and known limitations.
+
+When a local repository implementation conflicts with an external example or generic framework advice, the local project implementation wins.
+
+## Project stack
+
+- Vanilla JavaScript ES modules
+- Vite
+- Three.js
+- WebXR Device API
+- Web Audio API
+- XR Blocks-style modular architecture
+- Desktop browser mode plus WebXR/emulator testing
+
+Do not introduce React, Unity, a second renderer, a second XR bootstrap, a new game engine, or broad dependencies without explicit approval.
+
+## Architecture
+
+Read these before work that affects their area:
+
+- [Architecture](docs/architecture.md): Entry points, module boundaries, game-loop states, XR bootstrapping, world/UI conventions.
+- [Agent workflow](docs/agent-workflow.md): Required inspect → plan → implement → validate process.
+- [Testing](docs/testing.md): Test commands, development checks, build checks, and regression rules.
+
+## XR and scenes
+
+- [XR scene guide](docs/antigravity-xr-scene-guide.md): Scene lifecycle, disposal, scale, comfort, interaction fallback, and performance requirements.
+- [XR Blocks reference](docs/xrblocks-reference.md): Curated XR Blocks guidance and integration cautions.
+- [XR Blocks source index](docs/xrblocks-source-index.md): Official docs/sample links; inspect only sources relevant to the assigned task.
+
+XR rules:
+
+- Preserve desktop keyboard/mouse fallback for every feature.
+- Controller input is required for XR interactions; hand tracking is optional.
+- Do not move the WebXR camera directly.
+- Use existing XR rig, locomotion, and game-state abstractions.
+- One Three.js unit equals one meter.
+- Prefer discrete grid movement and snap turns for dungeon exploration.
+- Avoid forced camera motion, flashing, sustained awkward head rotation, and expensive per-frame allocations.
+- Scene modules must clean up event listeners, timers, geometry, materials, textures, audio, and render targets they own.
+
+## Gameplay data
+
+- [Data registries](docs/data-registry.md): Canonical IDs, source provenance, normalization, and lookup rules.
+- [Combat system](docs/combat-system.md): Canonical combat pipeline and immutable runtime state rules.
+- [Combat sandbox](docs/combat-sandbox.md): Developer-only deterministic test harness and panel usage.
+- [Item system](docs/item-system.md): Item registry, instances, equipment, activation, and deferred mechanics. Read this before item work.
+
+Authoritative source modules:
+
+- [Monster registry](src/data/MonsterDatabase.js): Immutable canonical monster definitions, IDs 0–126.
+- [Spell registry](src/data/SpellDatabase.js): Immutable canonical spell definitions, IDs 0–104.
+- [Item registry](src/data/ItemDatabase.js): Canonical item definitions. Do not alter source data unless the task explicitly requests it.
+- [Combat contracts](src/core/combat/CombatTypes.js)
+- [Monster factory](src/core/combat/MonsterFactory.js)
+- [Monster action resolver](src/core/combat/MonsterEffectResolver.js)
+- [Encounter state](src/core/combat/EncounterState.js)
+- [Combat event applier](src/core/combat/CombatEventApplier.js)
+- [Combat sandbox](src/core/combat/CombatSandbox.js)
+
+Data rules:
+
+- Numeric source IDs are immutable provenance IDs.
+- Stable slugs are permanent runtime and save-game keys.
+- Static registry definitions must remain deeply immutable.
+- Store mutable state—HP, statuses, buffs, charges, identification, equipment—in runtime instances/state only.
+- Do not use item or spell display names for rules dispatch. Use IDs, slugs, typed effects, or source metadata.
+- Preserve unknown source behavior as explicit `unimplemented` output rather than inventing rules.
+- Do not merge the new combat/item pipeline into legacy `CombatEngine.js` without an approved integration plan.
+
+## Developer tooling
+
+- The combat sandbox is development-only.
+- The combat sandbox panel is gated behind `import.meta.env.DEV`.
+- Use it to validate monsters, spells, combat events, summons, and later item usage.
+- Do not expose debug APIs or panels in production builds.
+
+## Required validation
+
+After relevant code changes, run:
+
+```bash
+node src/core/utils/DiceAndFactory.test.js
+node src/core/utils/SpellDatabase.test.js
+node src/core/utils/MonsterEffectResolver.test.js
+node src/core/utils/CombatEventApplier.test.js
+node src/core/utils/CombatSandbox.test.js
+npm run build
+```
+
+If item work has added item tests, also run:
+
+```bash
+node src/core/utils/ItemDatabase.test.js
+node src/core/utils/InventoryState.test.js
+node src/core/utils/ItemEffectResolver.test.js
+```
+
+For UI/XR changes, also run:
+
+```bash
+npm run dev
+```
+
+Manually verify desktop controls. When relevant, test using the Immersive Web Emulator. Do not claim Quest performance, comfort, controller ergonomics, or hand tracking is validated without a real headset.
+
+## Constraints
+
+- Do not modify canonical monster, spell, or item source records unless explicitly told to change source data.
+- Do not modify `CombatEngine.js`, `CombatArena.js`, XR systems, game loop, or player-facing UI as collateral damage.
+- Plan before broad integration or refactoring.
+- Keep development-only code behind `import.meta.env.DEV`.
+- Use original visual assets, audio, maps, text, and UI art for publicly distributed builds.
+- Keep proprietary/source-derived reference data separate from original presentation assets.
+
+## Task plan template
+
+Before implementing a substantial task, report:
+
+- Goal
+- Relevant docs read
+- Existing modules inspected
+- Files to create/change
+- Public APIs affected
+- Desktop controls and XR controls
+- Runtime/data ownership
+- Cleanup/disposal plan
+- Performance risks
+- Test and manual verification plan

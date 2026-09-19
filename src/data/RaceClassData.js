@@ -190,45 +190,71 @@ export function getAllClassNames() {
 }
 
 // ─── LEVEL-UP & XP THRESHOLDS ──────────────────────────────────────────
-// Approximate XP thresholds per level (faithful to Bard's Tale scaling)
+// Exact 1985 C64 cumulative total XP thresholds per class group
 
-export const XP_THRESHOLDS = [
-  0,       // Level 1
-  1200,    // Level 2
-  3600,    // Level 3
-  8400,    // Level 4
-  18000,   // Level 5
-  36000,   // Level 6
-  72000,   // Level 7
-  144000,  // Level 8
-  250000,  // Level 9
-  400000,  // Level 10
-  600000,  // Level 11
-  900000,  // Level 12
-  1300000, // Level 13
-  1800000  // Level 14+
-];
+export const LOW_LEVEL_XP_THRESHOLDS = Object.freeze({
+  fighter: [0, 2000, 4000, 7000, 10000, 15000, 20000, 30000, 50000, 80000, 110000, 150000, 200000],
+  monkMage: [0, 1800, 4000, 6000, 10000, 14000, 19000, 29000, 50000, 90000, 120000, 170000, 230000],
+  sorcerer: [0, 7000, 15000, 25000, 40000, 60000, 80000, 100000, 130000, 170000, 220000, 300000, 400000],
+  wizard: [0, 20000, 50000, 80000, 120000, 160000, 200000, 250000, 300000, 400000, 600000, 900000, 1300000]
+});
 
-/**
- * Get the experience level for a given XP total.
- * @param {number} xp
- * @returns {number}
- */
-export function getLevelForXP(xp) {
-  for (let i = XP_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (xp >= XP_THRESHOLDS[i]) return i + 1;
+export const POST_13_XP_INCREMENTS = Object.freeze({
+  fighter: 200000,
+  monkMage: 230000,
+  sorcerer: 400000,
+  wizard: 1300000
+});
+
+export function getXPRequiredForClassLevel(className, targetLevel) {
+  if (targetLevel <= 1) return 0;
+  const c = (className || '').toLowerCase();
+  const group = ['warrior', 'paladin', 'bard', 'hunter', 'rogue'].includes(c) ? 'fighter' :
+                ['monk', 'conjurer', 'magician'].includes(c) ? 'monkMage' :
+                c === 'sorcerer' ? 'sorcerer' :
+                c === 'wizard' ? 'wizard' : 'fighter';
+
+  const table = LOW_LEVEL_XP_THRESHOLDS[group];
+  if (targetLevel <= 13) {
+    return table[targetLevel - 1];
   }
-  return 1;
+  const base13 = table[12];
+  const increment = POST_13_XP_INCREMENTS[group];
+  return base13 + (targetLevel - 13) * increment;
 }
 
 /**
- * XP needed to reach the next level.
- * @param {number} currentLevel
- * @returns {number|null} null if at max
+ * Get the experience level for a given class and XP total.
+ * @param {string} className
+ * @param {number} xp
+ * @returns {number}
  */
-export function getXPForNextLevel(currentLevel) {
-  if (currentLevel >= XP_THRESHOLDS.length) return null;
-  return XP_THRESHOLDS[currentLevel]; // threshold index is 0-based, level is 1-based
+export function getLevelForXP(className, xp) {
+  if (typeof className === 'number') {
+    // Backward compatibility if called with (xp)
+    xp = className;
+    className = 'Warrior';
+  }
+  let level = 1;
+  while (xp >= getXPRequiredForClassLevel(className, level + 1)) {
+    level++;
+    if (level >= 99) break;
+  }
+  return level;
+}
+
+/**
+ * Cumulative XP needed to reach the next level for a character.
+ * @param {string} className
+ * @param {number} currentLevel
+ * @returns {number}
+ */
+export function getXPForNextLevel(className, currentLevel) {
+  if (typeof className === 'number') {
+    currentLevel = className;
+    className = 'Warrior';
+  }
+  return getXPRequiredForClassLevel(className, (currentLevel || 1) + 1);
 }
 
 // ─── SPELL LEVEL PROGRESSION ────────────────────────────────────────────

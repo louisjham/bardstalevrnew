@@ -1,0 +1,7 @@
+encounter_id,location_zone,map_x,map_y,description,group_1_monster,group_1_count,group_2_monster,group_2_count,group_3_monster,group_3_count,group_4_monster,group_4_count
+WINE_CELLAR_AMBUSH_1,wine_cellar,3,5,Wine Cellar ambush tile,Skeleton,4,Spider,3,Nomad,2,,
+WINE_CELLAR_AMBUSH_2,wine_cellar,7,12,Wine Cellar barrel corner,Kobold,6,Wolf,2,,,,
+SEWER_DRAGON_LAIR,sewers_l1,14,22,Sewers guardian,Blue Dragon,1,Stone Giant,2,,,,
+KYLEARAN_BERSERKERS_99,kylearans_tower,0,15,Kylearan 99 Berserkers,Berserker,99,Berserker,99,Berserker,99,Berserker,99
+MANGAR_GATE_DRAGONS,mangars_tower,11,11,Mangar gate guardians,Red Dragon,2,Storm Giant,4,,,,
+MANGAR_FINAL_BATTLE,mangars_tower,15,15,Mangar final confrontation,Mangar,1,Vampire Lord,2,Demon Lord,1,,

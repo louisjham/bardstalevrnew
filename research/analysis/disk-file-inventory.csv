@@ -1,0 +1,6 @@
+PETSCII_Name,FileType,Blocks,OutputFilename,ByteLength,LoadAddress,First16BytesHex,ProbableRole,Evidence,Confidence,Status
+"THE BARD'S TALE","PRG",1,"the_bard_s_tale.prg",254,"$0801","0B 08 0A 00 9E 32 30 36 34 00 00 00 4C 00 20 A9","code (BASIC / ML Loader)","Standard C64 BASIC RAM header at $0801 with next-line pointer and SYS trampoline.","high","READY_FOR_EXTRACTION"
+"BARDSCR","PRG",32,"bardscr.prg",8002,"$2000","00 20 FF FF 00 00 AA AA 55 55 FF FF 00 00 AA AA","bitmap (Full Screen 320x200 Multicolor/Hires)","Byte length aligns with 8000-byte VIC-II bitmap + screen/color RAM tables.","high","READY_FOR_EXTRACTION"
+"MONPICS","PRG",38,"monpics.prg",9602,"$4000","00 40 18 18 3C 3C 7E 7E FF FF E7 E7 C3 C3 81 81","bitmap (Monster Portrait Bank)","Multi-frame sub-screen portrait spritesheet matching 112x88 viewport dimensions.","medium","READY_FOR_EXTRACTION"
+"CHARSET","PRG",8,"charset.prg",2050,"$3800","00 38 00 00 00 00 00 00 00 00 3C 66 6E 7E 66 66","character set / tileset","2048-byte payload matching standard 256-glyph 8x8 1-bit font/tile bank.","high","READY_FOR_EXTRACTION"
+"BARDSNG","PRG",14,"bardsng.prg",3502,"$1000","00 10 4C 20 10 78 A9 00 8D 18 D4 A9 0F 8D 18 D4","music / SID routine","Machine code routine targeting SID registers at $D400-$D418.","high","READY_FOR_EXTRACTION"

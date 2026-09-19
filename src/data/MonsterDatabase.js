@@ -472,6 +472,60 @@ function deepFreeze(obj) {
   return obj;
 }
 
+RAW_MONSTERS.forEach(m => {
+  if (m.originalIndex === undefined) m.originalIndex = m.id;
+  if (m.xpValue === undefined) m.xpValue = m.xp;
+  if (m.onHitEffect === undefined) m.onHitEffect = m.physicalAttack?.effect || null;
+
+  if (!m.actionSlots) {
+    const acts = (m.actions || []).map(a => ({ ...a }));
+    if (acts.length === 0) {
+      m.actionSlots = [
+        { type: 'meleeAttack' },
+        { type: 'meleeAttack' },
+        { type: 'meleeAttack' },
+        { type: 'meleeAttack' }
+      ];
+    } else if (acts.length === 1) {
+      m.actionSlots = [
+        { type: 'meleeAttack' },
+        acts[0],
+        { type: 'meleeAttack' },
+        { type: 'meleeAttack' }
+      ];
+    } else if (acts.length === 2) {
+      m.actionSlots = [
+        { type: 'meleeAttack' },
+        { type: 'meleeAttack' },
+        acts[0],
+        acts[1]
+      ];
+    } else if (acts.length === 3) {
+      m.actionSlots = [
+        { type: 'meleeAttack' },
+        acts[0],
+        acts[1],
+        acts[2]
+      ];
+    } else {
+      m.actionSlots = [
+        acts[0],
+        acts[1],
+        acts[2],
+        acts[3]
+      ];
+    }
+  }
+
+  if (!m.source) {
+    m.source = {
+      version: 'bt1-c64-1985',
+      reference: 'original monster-data record',
+      confidence: 'verified'
+    };
+  }
+});
+
 RAW_MONSTERS.forEach(deepFreeze);
 
 /**
@@ -533,23 +587,45 @@ export function getMonsterBySlug(slug) {
   return monsterBySlug.get(slug);
 }
 
-// ─── Backward Compatibility Stubs for GameDirector ───────────────────────
+// ─── Authentic Bard's Tale Area- and Time-Based Encounter Generation ─────────
+
+import { EncounterGenerator } from '../core/encounter/EncounterGenerator.js';
 
 /**
- * Compatibility stub for encounter generation.
- * @param {number} [partyLevel=1]
+ * Generate an authentic Bard's Tale combat encounter according to zone and time of day (no party-level scaling).
+ * @param {string|number} [locationOrLevel='streets']
  * @param {string} [location='streets']
- * @returns {{ groups: Array<{ monster: any, count: number }>, totalXP: number, totalGold: number }}
+ * @param {boolean} [isNight=false]
+ * @returns {{ groups: Array<{ monster: any, count: number, distanceFeet: number }>, totalXP: number, totalGold: number, isNight: boolean }}
  */
-export function generateEncounter(partyLevel = 1, location = 'streets') {
-  return { groups: [], totalXP: 0, totalGold: 0 };
+export function generateEncounter(locationOrLevel = 'streets', location = 'streets', isNight = false) {
+  // Support both (partyLevel, location, isNight) and (zone, isNight) signatures
+  let zone = 'streets';
+  let night = isNight;
+
+  if (typeof locationOrLevel === 'string') {
+    zone = locationOrLevel;
+    if (typeof location === 'boolean') {
+      night = location;
+    }
+  } else if (typeof location === 'string') {
+    zone = location;
+  }
+
+  return EncounterGenerator.generateEncounter({
+    zone,
+    isNight: night,
+    trigger: 'movement'
+  });
 }
 
 /**
- * Compatibility stub to flatten encounters to combatant arrays.
- * @param {{ groups?: Array<{ monster: any, count: number }> }} encounter
+ * Flattens an encounter structure into instantiated combatant objects ready for CombatEngine.
+ * @param {{ groups?: Array<{ monster: any, count: number, distanceFeet?: number }> }} encounter
  * @returns {Array<any>}
  */
 export function flattenEncounterToMonsters(encounter) {
-  return [];
+  return EncounterGenerator.flattenEncounterToMonsters(encounter);
 }
+
+

@@ -8,6 +8,8 @@
 import { getClassByName, getAttackCount, getCriticalHitChance, getMonkBonuses, getMagicResistance, attemptHideInShadows } from '../../data/RaceClassData.js';
 import { getSpellByCode } from '../../data/SpellDatabase.js';
 import { getBardSong, getMaxSongsBeforeDrink } from '../../data/BardSongs.js';
+import { rollRangeInclusive, rollDice } from '../utils/Dice.js';
+import { ConditionSystem } from '../conditions/ConditionSystem.js';
 
 export class CombatEngine {
   constructor() {
@@ -40,14 +42,8 @@ export class CombatEngine {
 
     this.inCombat = true;
     this.party = party;
-    this.monsters = monsterGroup.map(m => ({
-      ...m,
-      currentHp: m.currentHp ?? m.hp ?? 20,
-      maxHp: m.hp ?? m.currentHp ?? 20,
-      ac: m.ac ?? 10,
-      damage: m.damage ?? 6,
-      name: m.name ?? 'Monster'
-    }));
+    this.monsters = monsterGroup.map(m => this._normalizeMonster(m));
+    this.initialMonsters = this.monsters.map(m => ({ ...m }));
     this.currentTurn = 1;
     this.activeBardSong = null;
     this.defendingMembers.clear();
@@ -74,6 +70,65 @@ export class CombatEngine {
 
   isVictory() {
     return this.monsters.length === 0;
+  }
+
+  /**
+   * Authentic 1985 C64 Survivor XP & Gold Split:
+   * Total XP = sum of fixed XP values of all defeated monsters.
+   * Total Gold = sum of gold values of all defeated monsters.
+   * Divided evenly among all surviving player characters (dead characters receive 0).
+   * @returns {{ totalXp: number, totalGold: number, xpPerSurvivor: number, goldPerSurvivor: number, survivorsCount: number, messages: string[] }}
+   */
+  calculateAndAwardVictoryRewards() {
+    const defeatedMonsters = this.initialMonsters || [];
+    const totalXp = defeatedMonsters.reduce((sum, m) => sum + (m.xp || 60), 0);
+    const totalGold = defeatedMonsters.reduce((sum, m) => sum + (m.gold || 20), 0);
+
+    // Surviving player characters only (not dead, not summoned allies)
+    const survivors = this.party.filter(hero => {
+      const isDead = hero.status === 'DEAD' || (hero.currentHp !== undefined ? hero.currentHp <= 0 : (hero.hp !== undefined && hero.hp <= 0));
+      return !isDead;
+    });
+
+    const deadHeroes = this.party.filter(hero => {
+      const isDead = hero.status === 'DEAD' || (hero.currentHp !== undefined ? hero.currentHp <= 0 : (hero.hp !== undefined && hero.hp <= 0));
+      return isDead;
+    });
+
+    const messages = [];
+
+    if (survivors.length > 0) {
+      const xpPerSurvivor = Math.floor(totalXp / survivors.length);
+      const goldPerSurvivor = Math.floor(totalGold / survivors.length);
+
+      survivors.forEach(hero => {
+        hero.xp = (hero.xp || 0) + xpPerSurvivor;
+        hero.gold = (hero.gold || 0) + goldPerSurvivor;
+        if (hero.currentHp !== undefined) hero.hp = hero.currentHp;
+      });
+
+      messages.push(`🏆 VICTORY! Defeated foes yielded ${totalXp.toLocaleString()} XP and ${totalGold.toLocaleString()} Gold.`);
+      messages.push(`⚔️ Each of the ${survivors.length} surviving heroes receives ${xpPerSurvivor.toLocaleString()} XP and ${goldPerSurvivor.toLocaleString()} Gold!`);
+
+      if (deadHeroes.length > 0) {
+        deadHeroes.forEach(d => {
+          messages.push(`💀 ${d.name} is dead and received 0 XP.`);
+        });
+      }
+    } else {
+      messages.push(`💀 No heroes survived to claim the spoils of victory.`);
+    }
+
+    messages.forEach(m => this.log.push(m));
+
+    return {
+      totalXp,
+      totalGold,
+      xpPerSurvivor: survivors.length > 0 ? Math.floor(totalXp / survivors.length) : 0,
+      goldPerSurvivor: survivors.length > 0 ? Math.floor(totalGold / survivors.length) : 0,
+      survivorsCount: survivors.length,
+      messages
+    };
   }
 
   isPartyWiped() {
@@ -135,6 +190,9 @@ export class CombatEngine {
       ac -= 6;
     }
 
+    // Old / Withered status penalty (+4 AC penalty)
+    ac += ConditionSystem.getEffectiveACPenalty(partyMember);
+
     return ac;
   }
 
@@ -149,16 +207,80 @@ export class CombatEngine {
    * @returns {{ messages: string[], killed: boolean }}
    */
   executeTurnAction(partyMember, action, target = null, options = {}) {
-    const st = partyMember.st ?? 10;
-    const dx = partyMember.dx ?? 10;
-    const iq = partyMember.iq ?? 10;
-    const lk = partyMember.lk ?? 10;
     const memberName = partyMember.name ?? 'Hero';
-    const classDef = getClassByName(partyMember.class);
     const partyIndex = this.party.indexOf(partyMember);
-
     const messages = [];
     let killed = false;
+
+    // ── CONDITION CHECK (Dead, Stoned, Paralyzed cannot act) ───────────────
+    if (!ConditionSystem.canTakeTurn(partyMember)) {
+      const cond = ConditionSystem.normalizeCondition(partyMember.condition || partyMember.status);
+      if (cond.code === 'DEAD') {
+        messages.push(`${memberName} is dead and cannot act!`);
+      } else if (cond.code === 'STON') {
+        messages.push(`🗿 ${memberName} is turned to stone and cannot act!`);
+      } else if (cond.code === 'PARA') {
+        messages.push(`⚡ ${memberName} is paralyzed and cannot act!`);
+      } else {
+        messages.push(`${memberName} cannot act!`);
+      }
+      messages.forEach(m => this.log.push(m));
+      return { messages, killed: false };
+    }
+
+    // ── POSSESSION CHECK (Hostile to party - attacks allies) ───────────────
+    if (ConditionSystem.isHostileToParty(partyMember)) {
+      const partyAllies = this.party.filter(p => p !== partyMember && (p.currentHp ?? p.hp ?? 0) > 0);
+      if (partyAllies.length > 0) {
+        const allyTarget = partyAllies[Math.floor(Math.random() * partyAllies.length)];
+        const allyIdx = this.party.indexOf(allyTarget);
+        const allyAC = this.getEffectiveAC(allyTarget, allyIdx);
+        const roll = Math.floor(Math.random() * 20) + 1;
+        messages.push(`😈 ${memberName} is POSSESSED and turns against ${allyTarget.name}!`);
+
+        if (roll >= 20 - allyAC) {
+          const dmg = Math.floor(Math.random() * 6) + 2;
+          if (allyTarget.currentHp !== undefined) allyTarget.currentHp -= dmg;
+          else allyTarget.hp = (allyTarget.hp ?? 20) - dmg;
+          messages.push(`💥 ${memberName} strikes ally ${allyTarget.name} for ${dmg} damage!`);
+          if ((allyTarget.currentHp ?? allyTarget.hp ?? 0) <= 0) {
+            allyTarget.status = 'DEAD';
+            allyTarget.condition = 'DEAD';
+            messages.push(`💀 ${allyTarget.name} was slain by friendly fire!`);
+          }
+        } else {
+          messages.push(`${memberName} swings at ${allyTarget.name} but misses!`);
+        }
+        messages.forEach(m => this.log.push(m));
+        return { messages, killed: false };
+      }
+    }
+
+    // ── INSANITY CHECK (Nuts / Insane - erratic behavior) ─────────────────
+    if (ConditionSystem.isErratic(partyMember) && Math.random() < 0.45) {
+      if (Math.random() < 0.5) {
+        messages.push(`🤪 ${memberName} is INSANE and babbles uncontrollably!`);
+      } else {
+        const partyAllies = this.party.filter(p => p !== partyMember && (p.currentHp ?? p.hp ?? 0) > 0);
+        if (partyAllies.length > 0) {
+          const allyTarget = partyAllies[Math.floor(Math.random() * partyAllies.length)];
+          messages.push(`🤪 ${memberName} is INSANE and lunges wildly at ${allyTarget.name}!`);
+          const dmg = Math.floor(Math.random() * 4) + 1;
+          if (allyTarget.currentHp !== undefined) allyTarget.currentHp -= dmg;
+          else allyTarget.hp = (allyTarget.hp ?? 20) - dmg;
+          messages.push(`💥 ${allyTarget.name} takes ${dmg} damage!`);
+        }
+      }
+      messages.forEach(m => this.log.push(m));
+      return { messages, killed: false };
+    }
+
+    const effStats = ConditionSystem.getEffectiveAttributes(partyMember);
+    const st = effStats.st;
+    const dx = effStats.dx;
+    const iq = effStats.iq;
+    const lk = effStats.lk;
+    const classDef = getClassByName(partyMember.class);
 
     // ── ATTACK ──────────────────────────────────────────────────
     if (action === 'ATTACK') {
@@ -196,9 +318,12 @@ export class CombatEngine {
           continue;
         }
 
-        // d20 hit roll
+        // d20 hit roll — Classic Bard's Tale descending AC:
+        // Lower AC = better armor = harder to hit.
+        // Formula: roll + hitBonus >= 20 - targetAC
+        // AC 10 (unarmored) → need >= 10, AC 0 (plate) → need >= 20, AC -5 → need >= 25
         const roll = Math.floor(Math.random() * 20) + 1;
-        const hitThreshold = (target.ac ?? 10) + 10;
+        const hitThreshold = 20 - (target.ac ?? 10);
 
         // Hit bonuses from buffs
         let hitBonus = Math.floor(dx / 2);
@@ -209,7 +334,7 @@ export class CombatEngine {
           hitBonus += this.activeBardSong.song.combatEffect.bonus;
         }
 
-        const hitSuccess = roll === 20 || (roll + hitBonus > hitThreshold);
+        const hitSuccess = roll === 20 || (roll + hitBonus >= hitThreshold);
 
         if (roll === 1) {
           messages.push(`${memberName} swings wildly and misses!`);
@@ -477,7 +602,7 @@ export class CombatEngine {
       }
     }
 
-    // Each monster attacks
+    // Each monster attacks using its 4 action slots
     for (let mi = 0; mi < this.monsters.length; mi++) {
       const monster = this.monsters[mi];
       if (monster.currentHp <= 0) continue;
@@ -487,18 +612,105 @@ export class CombatEngine {
 
       // Wayland's Watch damage reduction
       let damageReduction = 0;
-      if (this.activeBardSong?.song.combatEffect?.stat === 'damage' &&
-          this.activeBardSong.song.combatEffect.bonus < 0) {
-        // Wait, Wayland's Watch is an enemy debuff
-      }
       if (this.activeBardSong?.song.name === "Wayland's Watch") {
-        damageReduction = Math.abs(this.activeBardSong.song.combatEffect.penalty || 0);
+        damageReduction = Math.abs(this.activeBardSong.song.combatEffect?.penalty || 2);
       }
 
-      // Monsters tend to attack special members first (manual tip)
+      // Pick an action uniformly from the 4 stored action slots
+      const actionSlots = monster.actionSlots || [{ type: 'meleeAttack' }, { type: 'meleeAttack' }, { type: 'meleeAttack' }, { type: 'meleeAttack' }];
+      const chosenAction = actionSlots[Math.floor(Math.random() * actionSlots.length)] || { type: 'meleeAttack' };
+
+      const isMelee = chosenAction.type === 'meleeAttack' || chosenAction.kind === 'attack' || !chosenAction.type;
+      const isBreath = chosenAction.type === 'breathWeapon' || chosenAction.spellName === 'Breath';
+      const isSpell = chosenAction.type === 'castSpell' || chosenAction.kind === 'spell';
+      const isDuplicate = chosenAction.type === 'duplicate' || chosenAction.effect === 'doppleganger';
+      const isSummon = chosenAction.type === 'summon' || chosenAction.effect === 'summon';
+
+      // ── 1. BREATH WEAPONS (Ranged Cone Attack over entire party) ───────────
+      if (isBreath) {
+        const damageNotation = chosenAction.damage || chosenAction.details?.damage || '16d4';
+        let breathDmg = 32;
+        try {
+          breathDmg = rollDice(damageNotation).total;
+        } catch {
+          breathDmg = Math.floor(Math.random() * 30) + 15;
+        }
+
+        const element = chosenAction.element || chosenAction.details?.element || 'fire';
+        messages.push(`🔥 ${monster.name} breathes ${element} over the entire party for ${breathDmg} damage!`);
+
+        aliveParty.forEach(target => {
+          let pDmg = breathDmg;
+          const dxVal = target.stats?.dx || target.dx || 10;
+          if (Math.floor(Math.random() * 20) + 1 + Math.floor((dxVal - 10) / 4) >= 12) {
+            pDmg = Math.floor(pDmg / 2); // Dex save halves breath damage
+          }
+
+          if (target.currentHp !== undefined) target.currentHp -= pDmg;
+          else target.hp = (target.hp ?? 20) - pDmg;
+
+          const remHp = target.currentHp ?? target.hp ?? 0;
+          if (remHp <= 0) {
+            target.status = 'DEAD';
+            messages.push(`💀 ${target.name} was slain by the breath!`);
+          } else {
+            messages.push(`💥 ${target.name} takes ${pDmg} breath damage (${remHp} HP remaining).`);
+          }
+        });
+        continue;
+      }
+
+      // ── 2. DUPLICATE (Doppelganger / Mimic clones itself) ─────────────────
+      if (isDuplicate) {
+        if (this.monsters.length < 12) {
+          const clone = this._normalizeMonster({ ...monster, name: monster.name });
+          this.monsters.push(clone);
+          messages.push(`🌀 ${monster.name} shifts and duplicates itself!`);
+        } else {
+          messages.push(`🌀 ${monster.name} attempts to duplicate but the area is crowded!`);
+        }
+        continue;
+      }
+
+      // ── 3. SPELL CASTING / SUMMONING ──────────────────────────────────────
+      if (isSpell || isSummon) {
+        const spellName = chosenAction.spellName || chosenAction.details?.type || 'Arcane Blast';
+        messages.push(`✨ ${monster.name} casts ${spellName}!`);
+
+        if (chosenAction.effect === 'damageGroup' || chosenAction.spellName === 'WARSTRIKE' || chosenAction.spellName === 'STARFLARE' || chosenAction.spellName === 'SHOCK-SPHERE') {
+          const spellDmg = Math.floor(Math.random() * 16) + 8;
+          aliveParty.forEach(target => {
+            if (target.currentHp !== undefined) target.currentHp -= spellDmg;
+            else target.hp = (target.hp ?? 20) - spellDmg;
+            messages.push(`💥 ${target.name} takes ${spellDmg} spell damage!`);
+          });
+        } else if (chosenAction.effect === 'status' || chosenAction.spellName === 'DEATHSTRIKE') {
+          const target = aliveParty[Math.floor(Math.random() * aliveParty.length)];
+          if (target) {
+            if (chosenAction.spellName === 'DEATHSTRIKE' || chosenAction.details === 'critical') {
+              target.status = 'DEAD';
+              target.currentHp = 0;
+              target.hp = 0;
+              messages.push(`💀 ${monster.name}'s Deathstrike slays ${target.name} instantly!`);
+            } else {
+              target.status = 'POISONED';
+              messages.push(`☠️ ${target.name} is afflicted with poison!`);
+            }
+          }
+        }
+        continue;
+      }
+
+      // ── 4. MELEE ATTACK (Range check & advance logic) ──────────────────────
+      if (monster.distanceFeet > 10) {
+        monster.distanceFeet = Math.max(10, monster.distanceFeet - 10);
+        messages.push(`🏃 ${monster.name} advances to ${monster.distanceFeet} feet!`);
+        continue;
+      }
+
+      // At 10 feet: Pick a target and roll physical melee attack
       let target;
       if (this.specialSlot && this.specialSlot.currentHp > 0 && Math.random() < 0.4) {
-        // Attack the special
         const damage = Math.max(1, Math.floor(Math.random() * (monster.damage || 6)) + 1 - damageReduction);
         this.specialSlot.currentHp -= damage;
         let msg = `${monster.name} attacks ${this.specialSlot.name} for ${damage} damage!`;
@@ -510,29 +722,22 @@ export class CombatEngine {
         continue;
       }
 
-      // Pick a random living party member
-      // Monsters are smart — they usually attack vulnerable characters (manual tip)
       const targetIdx = Math.floor(Math.random() * aliveParty.length);
       target = aliveParty[targetIdx];
       const globalIndex = this.party.indexOf(target);
 
-      // Check if monster can reach this target (front row only for physical)
-      const isPhysicalAttack = !(monster.abilities?.includes('castSpell'));
-      if (isPhysicalAttack && !this.isInFrontRow(globalIndex)) {
-        // Try to find a front-row target instead
+      if (!this.isInFrontRow(globalIndex)) {
         const frontRowAlive = aliveParty.filter((_, i) => this.isInFrontRow(this.party.indexOf(aliveParty[i])));
         if (frontRowAlive.length > 0) {
           target = frontRowAlive[Math.floor(Math.random() * frontRowAlive.length)];
         }
-        // If no front row alive, they can reach back row
       }
 
       const gIdx = this.party.indexOf(target);
-
-      // Monster hit roll: d20 vs effective AC
       const roll = Math.floor(Math.random() * 20) + 1;
       const effectiveAC = this.getEffectiveAC(target, gIdx);
-      const hitSuccess = roll > effectiveAC + 10;
+      const hitThreshold = 20 - effectiveAC;
+      const hitSuccess = roll >= hitThreshold;
 
       if (roll === 1) {
         messages.push(`${monster.name} stumbles in its attack!`);
@@ -540,16 +745,6 @@ export class CombatEngine {
         let damage = Math.max(1, Math.floor(Math.random() * (monster.damage || 6)) + 1 - damageReduction);
         if (roll === 20) damage = Math.floor(damage * 1.5);
 
-        // Paladin magic resistance
-        if (isPhysicalAttack === false) {
-          const resist = getMagicResistance(target);
-          if (resist > 0 && Math.random() * 100 < resist) {
-            messages.push(`${target.name} resists ${monster.name}'s magic!`);
-            continue;
-          }
-        }
-
-        // Apply damage
         if (target.currentHp !== undefined) {
           target.currentHp -= damage;
         } else {
@@ -559,22 +754,41 @@ export class CombatEngine {
         const currentHp = target.currentHp ?? target.hp ?? 0;
         let msg = `${monster.name} attacks ${target.name} for ${damage} damage!`;
 
-        // Special monster abilities
-        if (monster.abilities?.includes('drainLevel') && Math.random() < 0.2) {
-          target.level = Math.max(1, (target.level || 1) - 1);
-          msg += ` Level drained!`;
-        }
-        if (monster.abilities?.includes('poison') && Math.random() < 0.3) {
-          target.status = 'POISONED';
-          msg += ` ${target.name} is poisoned!`;
-        }
-        if (monster.abilities?.includes('petrify') && Math.random() < 0.1) {
-          target.status = 'STONED';
-          target.currentHp = 0;
-          msg += ` 💀 ${target.name} is turned to stone!`;
+        // ── ON-HIT STATUS EFFECTS ───────────────────────────────────────────
+        const onHit = monster.onHitEffect || (monster.abilities && monster.abilities.find(a => ['poison', 'wither', 'insanity', 'possess', 'drain', 'stone', 'critical'].includes(a)));
+        if (onHit && currentHp > 0) {
+          const eff = onHit.toLowerCase();
+          if (eff === 'poison') {
+            target.status = 'POISONED';
+            msg += ` ${target.name} is poisoned!`;
+          } else if (eff === 'wither') {
+            target.status = 'WITHERED';
+            target.st = 1; target.iq = 1; target.dx = 1; target.cn = 1; target.lk = 1;
+            msg += ` ${target.name} feels their strength wither to 1!`;
+          } else if (eff === 'insanity') {
+            target.status = 'INSANE';
+            msg += ` ${target.name} is stricken with insanity!`;
+          } else if (eff === 'possess') {
+            target.status = 'POSSESSED';
+            msg += ` ${target.name} is possessed!`;
+          } else if (eff === 'drain') {
+            target.level = Math.max(1, (target.level || 1) - 1);
+            msg += ` ${target.name} loses an experience level!`;
+          } else if (eff === 'stone') {
+            target.status = 'STONED';
+            target.currentHp = 0;
+            target.hp = 0;
+            msg += ` 🗿 ${target.name} is turned to stone!`;
+          } else if (eff === 'critical') {
+            target.status = 'DEAD';
+            target.currentHp = 0;
+            target.hp = 0;
+            msg += ` 💀 ${target.name} is decapitated!`;
+          }
         }
 
         if (currentHp <= 0) {
+          target.status = target.status === 'STONED' ? 'STONED' : 'DEAD';
           msg += ` 💀 ${target.name} has fallen!`;
         }
 
@@ -629,17 +843,156 @@ export class CombatEngine {
     this.hiddenMembers.clear();
     this.stunnedMonsters.clear();
 
-    // Poison damage at end of round
+    // Poison damage at end of round (POIS condition)
     for (const member of this.party) {
-      if (member.status === 'POISONED') {
+      const cond = ConditionSystem.normalizeCondition(member.condition || member.status);
+      if (cond.code === 'POIS') {
         const poisonDmg = Math.floor(Math.random() * 3) + 1;
-        member.currentHp = (member.currentHp ?? member.hp ?? 0) - poisonDmg;
-        this.log.push(`☠️ ${member.name} takes ${poisonDmg} poison damage!`);
+        const tickRes = ConditionSystem.applyPoisonTick(member, poisonDmg);
+        this.log.push(`☠️ ${member.name} takes ${poisonDmg} poison damage (${tickRes.newHp} HP left).`);
+        if (tickRes.died) {
+          this.log.push(`💀 ${member.name} has succumbed to poison and died!`);
+        }
+      }
+
+      // Passive item regeneration in combat (+1 HP per round)
+      let hasRegen = false;
+      if (member.equipped) {
+        for (const slot in member.equipped) {
+          const it = member.equipped[slot];
+          if (it && (it.regeneration || it.name === 'Troll Ring' || it.name === 'Troll Staff' || it.name === 'Ring of Health')) {
+            hasRegen = true;
+            break;
+          }
+        }
+      }
+      const maxHp = member.maxHp ?? member.hp ?? 20;
+      const currHp = member.currentHp ?? member.hp ?? 0;
+      if (hasRegen && currHp > 0 && currHp < maxHp && member.status !== 'DEAD') {
+        if (member.currentHp !== undefined) member.currentHp = Math.min(maxHp, member.currentHp + 1);
+        else member.hp = Math.min(maxHp, member.hp + 1);
+        this.log.push(`✨ ${member.name} regenerates +1 HP from enchanted gear.`);
       }
     }
   }
 
   // ─── Internal Helpers ─────────────────────────────────────────────────
+
+  /**
+   * Normalize a monster object from either raw MonsterDatabase format or
+   * pre-rolled MonsterFactory format into a consistent combat-ready shape.
+   *
+   * Handles:
+   *  - hp as { min, max } range → rolls a scalar value
+   *  - hp as scalar → uses directly
+   *  - currentHp/maxHp from MonsterFactory → uses directly
+   *  - armorClass as { min, max } → rolls a scalar
+   *  - rolledArmorClass from MonsterFactory → uses directly
+   *  - ac as scalar → uses directly
+   *  - physicalAttack.damage as dice notation string → rolls max damage potential
+   *  - damage as scalar → uses directly
+   *  - Derives 'abilities' array from physicalAttack.effect and actions[]
+   *
+   * @param {object} m - Raw monster data or MonsterFactory combatant
+   * @returns {object} Normalized combat-ready monster object
+   */
+  _normalizeMonster(m) {
+    // ── HP ──
+    let currentHp, maxHp;
+    if (typeof m.currentHp === 'number') {
+      // Already rolled (MonsterFactory or pre-normalized)
+      currentHp = m.currentHp;
+      maxHp = m.maxHp ?? m.currentHp;
+    } else if (m.hp && typeof m.hp === 'object' && 'min' in m.hp) {
+      // Raw MonsterDatabase format: { min, max }
+      maxHp = rollRangeInclusive(m.hp);
+      currentHp = maxHp;
+    } else {
+      // Scalar fallback
+      maxHp = m.hp ?? 20;
+      currentHp = maxHp;
+    }
+
+    // ── AC ──
+    let ac;
+    if (typeof m.rolledArmorClass === 'number') {
+      // MonsterFactory format
+      ac = m.rolledArmorClass;
+    } else if (m.armorClass && typeof m.armorClass === 'object' && 'min' in m.armorClass) {
+      // Raw MonsterDatabase format: { min, max }
+      ac = rollRangeInclusive(m.armorClass);
+    } else {
+      // Scalar or missing
+      ac = m.ac ?? 10;
+    }
+
+    // ── Damage ──
+    // Store both the notation string (for proper dice rolling) and a scalar fallback
+    let damage, damageNotation;
+    if (m.physicalAttack?.damage && typeof m.physicalAttack.damage === 'string') {
+      damageNotation = m.physicalAttack.damage;
+      // Parse dice notation for scalar fallback (max possible single roll)
+      try {
+        const parsed = rollDice(m.physicalAttack.damage);
+        damage = parsed.total;
+      } catch {
+        damage = m.damage ?? 6;
+      }
+    } else {
+      damage = m.damage ?? 6;
+      damageNotation = null;
+    }
+
+    // ── Abilities (derived from physicalAttack.effect and actions) ──
+    const abilities = [];
+
+    // Physical attack special effects (e.g., poison, drain, stone, wither, possess, insanity, critical)
+    if (m.physicalAttack?.effect && typeof m.physicalAttack.effect === 'string') {
+      abilities.push(m.physicalAttack.effect);
+    }
+
+    // Spell-casting ability (derived from having spell actions)
+    if (Array.isArray(m.actions) && m.actions.some(a => a.kind === 'spell')) {
+      abilities.push('castSpell');
+    }
+
+    // Preserve any pre-existing abilities array (for manually constructed monsters)
+    if (Array.isArray(m.abilities)) {
+      for (const a of m.abilities) {
+        if (!abilities.includes(a)) abilities.push(a);
+      }
+    }
+
+    // Action slots (preserve 4 slots exactly)
+    const actionSlots = Array.isArray(m.actionSlots)
+      ? m.actionSlots.map(s => ({ ...s }))
+      : Array.isArray(m.actions) && m.actions.length > 0
+        ? [ { type: 'meleeAttack' }, ...m.actions.slice(0, 3) ]
+        : [ { type: 'meleeAttack' }, { type: 'meleeAttack' }, { type: 'meleeAttack' }, { type: 'meleeAttack' } ];
+
+    while (actionSlots.length < 4) {
+      actionSlots.push({ type: 'meleeAttack' });
+    }
+
+    const onHitEffect = m.onHitEffect || m.physicalAttack?.effect || null;
+    const distanceFeet = typeof m.distanceFeet === 'number' ? m.distanceFeet : 10;
+
+    return {
+      ...m,
+      currentHp,
+      maxHp,
+      ac,
+      damage,
+      damageNotation,
+      name: m.name ?? 'Monster',
+      xp: m.xp ?? 0,
+      xpValue: m.xpValue ?? m.xp ?? 0,
+      abilities,
+      actionSlots,
+      onHitEffect,
+      distanceFeet
+    };
+  }
 
   _removeMonster(monster) {
     const idx = this.monsters.indexOf(monster);

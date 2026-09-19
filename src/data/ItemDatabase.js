@@ -151,6 +151,23 @@ export const GARTH_STANDARD_ITEMS = [
     name: 'Flute', category: ItemCategory.INSTRUMENT, price: 25,
     usableBy: ['Bard'], damage: 0, acBonus: 0,
     description: 'A wind instrument for Bards.'
+  },
+
+  // ─── Magic & Regenerative Rings / Staves ─────────────────────────────
+  {
+    name: 'Troll Ring', category: ItemCategory.RING, price: 2000,
+    usableBy: ALL_CLASSES, damage: 0, acBonus: -1, regeneration: 1,
+    description: 'Mystical bone band infused with troll essence; slowly regenerates +1 HP per round / tick.'
+  },
+  {
+    name: 'Ring of Health', category: ItemCategory.RING, price: 1500,
+    usableBy: ALL_CLASSES, damage: 0, acBonus: 0, regeneration: 1,
+    description: 'Gleaming ruby ring that fortifies the body and recovers +1 HP per round / tick.'
+  },
+  {
+    name: 'Troll Staff', category: ItemCategory.WEAPON, price: 3500,
+    usableBy: ALL_CLASSES, damage: 6, acBonus: -1, regeneration: 1,
+    description: 'Carved living gnarled staff that bludgeons foes and bestows regeneration (+1 HP/round).'
   }
 ];
 
@@ -201,3 +218,120 @@ export function calculateItemAC(equippedItems) {
  * Max items a character can carry.
  */
 export const MAX_INVENTORY_SIZE = 8;
+
+/**
+ * Generate a balanced, mid-grade starter equipment kit for a given class.
+ * @param {string} className
+ * @returns {object} { equipped: {...}, inventory: [...] }
+ */
+export function getStarterKitForClass(className) {
+  const findItem = (name) => GARTH_STANDARD_ITEMS.find(i => i.name === name);
+  const torch = findItem('Torch');
+
+  const kit = {
+    equipped: {},
+    inventory: [torch, torch].filter(Boolean)
+  };
+
+  switch (className) {
+    case 'Paladin':
+    case 'Warrior':
+      kit.equipped = {
+        weapon: findItem('Broadsword') || findItem('War Axe'),
+        shield: findItem('Tower Shield') || findItem('Buckler'),
+        armor: findItem('Chain Mail') || findItem('Scale Armor'),
+        helm: findItem('Helm'),
+        gloves: findItem('Gauntlets')
+      };
+      break;
+
+    case 'Hunter':
+      kit.equipped = {
+        weapon: findItem('Broadsword') || findItem('Short Sword'),
+        shield: findItem('Buckler'),
+        armor: findItem('Chain Mail') || findItem('Leather Armor'),
+        helm: findItem('Helm'),
+        gloves: findItem('Gauntlets') || findItem('Leather Gloves')
+      };
+      break;
+
+    case 'Monk':
+      kit.equipped = {
+        weapon: findItem('Staff') || findItem('Dagger'),
+        armor: findItem('Robes'),
+        gloves: findItem('Leather Gloves')
+      };
+      break;
+
+    case 'Bard':
+      kit.equipped = {
+        weapon: findItem('Broadsword') || findItem('Short Sword'),
+        armor: findItem('Chain Mail') || findItem('Leather Armor'),
+        helm: findItem('Helm'),
+        gloves: findItem('Leather Gloves'),
+        instrument: findItem('Mandolin') || findItem('Harp')
+      };
+      break;
+
+    case 'Rogue':
+      kit.equipped = {
+        weapon: findItem('Short Sword') || findItem('Dagger'),
+        shield: findItem('Buckler'),
+        armor: findItem('Leather Armor'),
+        helm: findItem('Helm'),
+        gloves: findItem('Leather Gloves')
+      };
+      break;
+
+    case 'Conjurer':
+    case 'Magician':
+    case 'Sorcerer':
+    case 'Wizard':
+    default:
+      kit.equipped = {
+        weapon: findItem('Staff') || findItem('Dagger'),
+        armor: findItem('Robes'),
+        gloves: findItem('Leather Gloves')
+      };
+      break;
+  }
+
+  return kit;
+}
+
+/**
+ * Outfits an individual character with mid-grade starter equipment and recalibrates AC.
+ * @param {object} character
+ */
+export function autoEquipCharacter(character) {
+  if (!character) return;
+  const kit = getStarterKitForClass(character.class);
+  character.equipped = { ...kit.equipped };
+  character.inventory = [...(character.inventory || []), ...kit.inventory].slice(0, MAX_INVENTORY_SIZE);
+
+  if (character.equipped.weapon) {
+    character.weapon = character.equipped.weapon.name;
+  }
+
+  let totalAcBonus = 0;
+  for (const slot in character.equipped) {
+    const item = character.equipped[slot];
+    if (item && typeof item.acBonus === 'number') {
+      totalAcBonus += item.acBonus;
+    }
+  }
+
+  const baseAC = 10;
+  const dxVal = (character.stats && character.stats.dx) || character.dx || 10;
+  const dxBonus = Math.floor((dxVal - 10) / 4);
+  character.ac = Math.max(1, baseAC - dxBonus + totalAcBonus);
+}
+
+/**
+ * Outfits an entire party of heroes with class-appropriate starter kits.
+ * @param {object[]} party
+ */
+export function autoEquipParty(party) {
+  if (!party || !Array.isArray(party)) return;
+  party.forEach(hero => autoEquipCharacter(hero));
+}

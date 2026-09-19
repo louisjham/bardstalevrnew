@@ -137,3 +137,64 @@ export const SPELL_EFFECT_DRAIN = SpellActionEffect.DRAIN;
  * @property {string} [summonerInstanceId] - Instance ID of summoner if spawned via spell.
  * @property {boolean} [isIllusion=false] - Whether this combatant is an illusionary summon.
  */
+
+// ─── Item & Inventory JSDoc Type Contracts ───────────────────────────────
+
+/**
+ * Item classification types for source-derived legacy item data.
+ * @typedef {'item' | 'weapon' | 'shield' | 'armor' | 'helm' | 'gloves' | 'instrument' | 'figurine' | 'wand' | 'ring' | 'misc'} ItemType
+ */
+
+/**
+ * Character class identifiers matching existing character class naming.
+ * @typedef {'Warrior' | 'Paladin' | 'Rogue' | 'Bard' | 'Hunter' | 'Monk' | 'Conjurer' | 'Magician' | 'Sorcerer' | 'Wizard'} BardTaleClass
+ */
+
+/**
+ * Static immutable canonical item definition from source-derived legacy item data.
+ * Note: id: 0 is the legacy empty-item sentinel in documentation only and must not become usable inventory.
+ * @typedef {Object} BardTaleItem
+ * @property {number} id - Legacy source integer ID (0-127). ID 0 is the empty-item sentinel.
+ * @property {string} slug - Stable unique string identifier for references and save-states.
+ * @property {string} name - Display name of the item.
+ * @property {ItemType} type - Item classification type.
+ * @property {number} costGold - Gold cost in shops.
+ * @property {number} [difficultyMin] - Minimum difficulty dungeon tier bound.
+ * @property {number} [difficultyMax] - Maximum difficulty dungeon tier bound.
+ * @property {readonly BardTaleClass[]} allowedClasses - Classes permitted to equip or use this item.
+ * @property {readonly string[]} equipSlots - Designated equipment slot identifiers.
+ * @property {string} [damage] - Damage dice string (e.g. "1d8", "2d4").
+ * @property {number} [attackBonus] - To-hit attack bonus modifier.
+ * @property {number} [armorClassBonus] - Armor class adjustment (lower is better).
+ * @property {string} [attackEffect] - Status or effect triggered on physical hit.
+ * @property {number | null} [uses] - Number of uses/charges before depletion.
+ * @property {boolean} [infiniteUses] - Whether item has unlimited charges.
+ * @property {number} [spellId] - Associated spell identifier from SpellDatabase.
+ * @property {string} [special] - Special item effect or summoned creature description.
+ * @property {readonly string[]} sourceFlags - Source-derived legacy item metadata flags.
+ */
+
+/**
+ * Mutable serializable runtime item state.
+ * @typedef {Object} ItemInstance
+ * @property {string} instanceId - Unique runtime instance identifier.
+ * @property {string} itemSlug - Reference to BardTaleItem.slug.
+ * @property {number} [remainingUses] - Remaining charges or uses before depletion.
+ * @property {boolean} identified - Whether item properties and true name are identified.
+ * @property {boolean} equipped - Whether item is currently equipped on a character.
+ * @property {string} [equippedSlot] - Specific equipment slot occupied if equipped.
+ * @property {string} [acquiredFrom] - Provenance tag describing where item was obtained.
+ */
+
+/**
+ * Serializable output from an eventual item-use resolver.
+ * @typedef {Object} ItemUseEvent
+ * @property {string} eventId - Unique event identifier.
+ * @property {string} itemInstanceId - Instance ID of the item being used or equipped.
+ * @property {string} itemSlug - Reference to BardTaleItem.slug.
+ * @property {number} legacyItemId - Legacy source integer ID (0-127).
+ * @property {'equip' | 'unequip' | 'castSpell' | 'summon' | 'special' | 'unimplemented'} effect - Resolved item action effect.
+ * @property {number} [spellId] - Associated spell identifier if effect is 'castSpell'.
+ * @property {Object} [details] - Additional parsed effect details or metadata.
+ * @property {string} [warning] - Warning message if item use is unsupported or unimplemented.
+ */

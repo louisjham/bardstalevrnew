@@ -6,46 +6,62 @@ Welcome! This document outlines completed milestones and provides a clear founda
 
 ## ✅ Completed Features & Milestones
 
-### 1. 💻 1980s Retro Room & Floppy Disk Boot Sequence
-- [x] Created 3D Commodore 64, 1541 Disk Drive with working red LED, and CRT Monitor (`src/world/retro-room/RetroRoom.js`).
-- [x] Implemented physical 5¼" floppy disk grab/insert interaction.
-- [x] C64 BASIC screen boot sequence: `LOAD "THEBARDSTALEVR",8,1` ➔ `LOADING...` ➔ `READY. RUN`.
-- [x] Head-in-Monitor portal trigger (leaning forward into the CRT screen transitions into the game).
+### 1. 💻 1980s Retro Room & Floppy Disk Boot Sequence (`src/world/retro-room/RetroRoom.js`)
+- [x] **3D Commodore 64 & 1541 Disk Drive**: Authentic C64 case, keyboard with PETSCII key legends, drive cooling vents, rotating latch lever, and flickering red drive activity LED.
+- [x] **Curved Commodore 1702 CRT Monitor**: Real-time GLSL shader (`src/shaders/CRTMonitorShader.js`) with barrel tube distortion, scanlines, phosphor mask, and bloom.
+- [x] **On-Rails Cinematic Intro**:
+  - Aligned start at the back of the bedroom ($z = 2.4\text{m}$, $x = -0.10\text{m}$, $y = 1.18\text{m}$).
+  - Dollies smoothly forward to the desk ($z = 0.15\text{m}$).
+  - Camera tilts down to watch the 5¼" floppy disk slide into the 1541 disk drive.
+  - Camera tilts up to watch the Commodore 64 boot sequence (`LOAD "Louis F Ham presents",8,1` ➔ `SEARCHING` ➔ `LOADING` ➔ `READY. RUN` ➔ Full Title Screen).
+  - Swirling GLSL logarithmic vortex portal activates, 3D particle vortex disk spins up, sucking the player into the screen with a **360° perspective barrel roll** and fade to black.
 
-### 2. 🍺 Skara Brae Tavern (Title Screen)
-- [x] Atmospheric 3D Tavern with stone walls, wooden floor, fireplace, and stained glass window (`src/world/FullVRTavern.js`).
-- [x] Bard performer on stage singing *"The Evil in Skara Brae"* with Web Audio API spatial lute synth and vocal formant oscillator (`src/audio/BardSinger.js`).
-- [x] 3D Floating Speech Lyric Bubbles floating next to the Bard's head on stage.
-- [x] Seated 3D patrons (*Human Paladin, Elf Wizard, Dwarf Warrior, Hobbit Rogue*).
+### 2. 🍺 Skara Brae Tavern (`src/world/FullVRTavern.js`)
+- [x] **Atmospheric Medieval Tavern**: Packed sand/dirt floor with bump normal maps, timber ceiling beams, iron wagon-wheel chandelier with volumetric flames (`TorchFlameShader.js`), stone fireplace, and stained glass.
+- [x] **Live Stage Bard Performer (`src/audio/BardSinger.js` & `BardSynth.js`)**: Real-time Web Audio API procedural lute synthesizer + vocal formant oscillator performing *"The Evil in Skara Brae"* with 3D floating lyric speech bubbles.
+- [x] **3D Seated Patrons**: Human Paladin, Elf Wizard, Dwarf Warrior, and Hobbit Rogue seated around oak slab tables with interactive sloshing ale tankards.
+- [x] **Dimensional Entrance Transition**: Concentric golden/violet dimensional rift ripple expanding and dissolving upon entry.
+- [x] **Quest 2 Touch Controller Door Interaction**: Highlight frame + large doorway trigger box; opens upon highlight + **ANY button press** on Meta Quest 2/3 Touch controllers.
 
-### 3. 🛡️ Garth's Weapons & Wonders (Equipment Shoppe)
-- [x] Garth Shopkeeper NPC behind wooden counter (`src/world/garths-shop/GarthsShop.js`).
-- [x] Physical 3D weapons on counter (*Broadsword, Battleaxe, Shield, Staff*) that can be grabbed/tapped to equip onto hero slots.
-- [x] Shop exit door leading into Skara Brae.
+### 3. 🛡️ Garth's Weapons & Wonders (`src/world/garths-shop/GarthsShop.js`)
+- [x] **Equipment Shoppe Environment**: Stone walls, volumetric wall torches, Garth shopkeeper NPC, crossed display blades, and shop banner.
+- [x] **3D Modeled Counter Weapons**: Physical Broadswords, Battleaxes, Iron Shields, Oak Staves, Warhammers, and Daggers that can be grabbed or tapped to equip directly to party hero slots.
+- [x] **Auto-Equip Station**: Golden anvil station to instantly kit out the entire 6-hero party with mid-grade arms, armor, and exploration torches.
+- [x] **Ledger & Character Inspection**: Interactive parchment ledger to inspect party character sheets and equipment.
 
-### 4. 📖 Palm-Flip 3D Grimoire / Player Book
-- [x] Hand gesture tracking: Palm-Down to Palm-Up 180° rotation spawns 3D Grimoire (`src/ui/spatial-hud/PalmBookMenu.js`).
-- [x] **Page 1 (Heroes & Inspection)**: Hero cards + Detailed Inspection View covering both pages. Dynamic State Portraits (*POISONED green tint & skull, CURSED purple shadow, DAMAGED blood splatters*).
-- [x] **Page 2 (Diegetic Automap)**: Real-time map renderer drawing explored grid tiles, labeling locations of interest (*Tavern, Garth's Shop, Guild, Dungeon*), with dungeon fog-of-war.
-- [x] **Page 3 (Spells & Live Testing)**: Live real-time spell testing outside combat (*Mage Flame dual hand fire emitters, Air Armor 6-inch amber shield bubble, Vorpal Plating electrical sparks*).
+### 4. 📖 Palm-Flip 3D Grimoire / Player Book (`src/ui/spatial-hud/PalmBookMenu.js`)
+- [x] **Natural Palm Gesture Tracking**: Turning hand over from palm-down to palm-up summons the glowing Grimoire with a summoning animation; dropping the pose dispels it.
+- [x] **Dual VR Controller Button Support**: Pressing **Y** or **X** on the left Touch controller toggles the Grimoire in HUD mode.
+- [x] **Page 1 (Heroes & Inspection)**: 6-hero status cards + detailed inspection view with dynamic condition portraits (*POISONED green tint & skull, CURSED purple shadow aura, DAMAGED blood splatters*).
+- [x] **Page 2 (Diegetic Automap)**: Real-time map generator rendering explored grid tiles, landmarks (*Tavern, Garth's Shop, Guild, Temples, Review Board, Roscoe's*), with fog-of-war.
+- [x] **Page 3 (Spells & Live Testing)**: Live testing of spells outside combat (*Mage Flame dual hand fire emitters, Air Armor 6-inch amber shield bubble, Vorpal Plating electrical sparks*).
+- [x] **C64 Desk Quick Reset**: Instant reset button to jump back to the 1985 C64 desk.
 
-### 5. ⚔️ Dedicated 3D Spatial Combat Zone
-- [x] 3D Battle Arena with glowing purple/red braziers & runic floor (`src/world/combat-zone/CombatArena.js`).
-- [x] Classic CRPG scrolling battle log text window (*"You face death in the form of 4 Skeletons!"*).
-- [x] Spatial party formation view (lowered front row vs back row) and 3D monster groups.
-- [x] Quizzical hero formation swap gesture (tapping a hero makes them turn head quizzically, tapping second hero swaps positions).
+### 5. 🏰 Canonical 30×30 Skara Brae City Grid (`src/world/skara-brae/SkaraBraeStreetScene.js`)
+- [x] **Full 30×30 Map**: Complete city grid matching the original 1985 Interplay map with cobblestone streets, dynamic sky dome, and authentic C64 pixel art building facades.
+- [x] **Interactive Storefronts & Sanctuaries**:
+  - **Adventurers Guild & Tavern**: Safe havens to rest and advance time to morning.
+  - **Temple of Divine Light & Temple of Tarjan (`src/ui/TempleUI.js`)**: Healing, purification, and resurrection services (100% free for Rogues at Tarjan).
+  - **Review Board (`src/ui/ReviewBoardUI.js`)**: Character level-ups, attribute rolls, spell tier training, and class changes (*Conjurer/Magician ➔ Sorcerer ➔ Wizard*).
+  - **Roscoe's Energy Emporium (`src/ui/RoscoeUI.js`)**: Spell Point recharges for 15 GP/SP.
 
-### 6. ⚡ Party Creation & Locomotion
-- [x] **Quick Auto-Generate Party (6 Heroes)** button rolling balanced party (*Paladin, Bard, Warrior, Rogue, Conjurer, Magician*).
-- [x] Custom character creation modal (`src/ui/PartyCreationUI.js`).
-### 7. 📖 Authentic 1985 Manual Integration & Data Systems
-- [x] **Complete Spell Database (`src/data/SpellDatabase.js`)**: All 85+ spells across 4 schools (Conjurer, Magician, Sorcerer, Wizard) and 7 levels, complete with 4-letter codes, SP costs, range/duration, and effect formulas.
-- [x] **6 Authentic Bard Songs (`src/data/BardSongs.js`)**: *Falkentyne's Fury, The Seeker's Ballad, Wayland's Watch, Badh'r Kilnfest, The Traveller's Tune, Lucklaran* with musical note sequences and exploration/combat mechanics.
-- [x] **Garth's Equipment Shoppe Inventory (`src/data/ItemDatabase.js`)**: 22+ items across 10 categories with authentic class restrictions (Ø markers), AC calculations, and damage stats.
-- [x] **Race & Class Rules Engine (`src/data/RaceClassData.js`)**: 7 races (genes + luck attribute roll), 10 classes (8 base + Sorcerer/Wizard/Archmage promotion pipeline), class-specific abilities (Warrior multi-attack, Hunter assassinate crits, Monk unarmed scaling, Paladin magic resist, Rogue hide in shadows).
-- [x] **Expanded Bestiary (`src/data/MonsterDatabase.js`)**: 30+ monsters across 4 dungeon tiers, special abilities (drainLevel, poison, petrify, spellcaster), and Mangar boss encounter.
-- [x] **Full Combat Engine Integration (`src/core/combat/CombatEngine.js` & `CombatArena.js`)**: Turn execution, front/back row melee rules, monster counter-attacks, AC mitigation, party buff tracking, and Special slot summons.
-- [x] **XRRig Camera Rig Architecture (`src/xr/XRRig.js`)**: Decoupled WebXR physical 6DOF head tracking from locomotion to eliminate motion sickness.
+### 6. ☀️🌙 Canonical Day / Night Cycle (`src/core/time/WorldTimeEngine.js`)
+- [x] **Continuous World Clock**: Cycles through `DAY` (3 min) ➔ `DUSK` (30s) ➔ `NIGHT` (2.5 min) ➔ `DAWN` (20s).
+- [x] **Service Hours**: Garth's Shop and the Review Board shutter at night.
+- [x] **Natural SP Regeneration**: Mages recover +1 SP per tick during daytime; stops at night.
+- [x] **Nighttime Street Danger**: Day spawns 1 enemy group; Night spawns 1–4 dangerous monster groups.
+
+### 7. ⚔️ Dedicated 3D Spatial Combat Arena (`src/world/combat-zone/CombatArena.js`)
+- [x] **Tactical 3D Arena**: Rune-inscribed arena floor, glowing braziers, spatial party formation (front row melee vs back row caster), and 3D monster groups.
+- [x] **Scrolling Combat Log**: Classic CRPG battle text log (*"You face death in the form of 4 Skeletons!"*).
+- [x] **Hero Formation Swap**: Tap hero to make them turn head quizzically, tap second hero to swap battle order.
+- [x] **CRPG Mechanics (`src/core/combat/CombatEngine.js`)**: AC mitigation, d20 hit rolls, 4-action monster AI slots, on-hit status afflictions, breath attacks, and survivor XP splits.
+
+### 8. 🏃 Locomotion & Physics (`src/xr/FreeLocomotion.js`)
+- [x] **Calibrated Avatar Height**: Desktop fallback eye height locked at **`1.18m`** (matches seated patrons and Bard); WebXR 6DOF VR rig locked at **`0.0m`** so room-scale physical head height is natural.
+- [x] **Rolling Office Chair Gesture Locomotion**: Raising arm and forming a fist propels the player forward with gradual acceleration and caster drag friction. Moving the arm left/right spins the avatar while preserving momentum.
+- [x] **2D Bumper Car Collisions**: Planar elastic bounce off walls, furniture, and counters with VR haptics.
+- [x] **Controller Thumbstick & WASD**: Standard smooth locomotion and snap/smooth turning.
 
 ---
 
@@ -53,7 +69,7 @@ Welcome! This document outlines completed milestones and provides a clear founda
 
 ### 📌 High-Priority Tasks
 1. **🏰 Skara Brae City & Dungeon Expansion**:
-   - Add dungeon stairs leading down into *The Catacombs* and *Harken Castle*.
+   - Add dungeon stairs leading down into *The Wine Cellar*, *The Catacombs*, and *Harkyn's Castle*.
    - Implement dungeon traps (spinner tiles, darkness zones, pit traps) with Palm Grimoire automap cues.
 
 2. **✨ 3D Spatial Rune Drawing Gestures**:
@@ -67,10 +83,11 @@ Welcome! This document outlines completed milestones and provides a clear founda
    - Display weapon stat tooltip cards (*Damage, Armor Class bonus, Required Class*) when hovering/grabbing items.
 
 5. **🔊 Audio & Voice Polish**:
-   - Add ambient tavern chatter, crackling fireplace audio positional sound, and footsteps.
+   - Add ambient tavern chatter, crackling fireplace positional audio, and footsteps.
 
 ---
 
 ## 💻 Technical Verification
-- Production build command: `npm run build` (Verified: 0 errors).
-- Local dev command: `npm run dev`.
+- **Automated Unit Tests**: `node --test src/**/*.test.js` (30/30 Passing).
+- **Production Build**: `npm run build` (Verified 0 errors).
+- **Local Dev Server**: `npm run dev` (HTTPS port 5173).

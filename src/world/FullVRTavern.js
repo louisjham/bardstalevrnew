@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TextureGenerator } from '../textures/TextureGenerator.js';
 import { PatronModels } from './PatronModels.js';
+import { TorchFlameShader } from '../shaders/TorchFlameShader.js';
 
 export class FullVRTavern {
   constructor(scene, onBardSelected, onDoorSelected) {
@@ -10,29 +11,36 @@ export class FullVRTavern {
 
     this.interactableObjects = [];
     this.torches = [];
+    this.flameMeshes = [];
     this.embers = [];
+    this.smokeParticles = [];
+    this.aleMugs = [];
     this.bardMesh = null;
     this.exitDoorMesh = null;
     this.speechBubbleMesh = null;
     this.speechCanvasCtx = null;
     this.speechTexture = null;
 
+    this.tavernGroup = new THREE.Group();
+    this.tavernGroup.name = 'FullVRTavern';
+    this.tavernGroup.visible = false;
+
     this.initTavernRoom();
+    this.initLightingAndChandelier();
     this.initStageAndBard();
-    this.initPatronsAndTables();
+    this.initPatronsAndOakTables();
+    this.initMountedTrophiesAndWeapons();
     this.initExitDoor();
     this.initFireplace();
     this.initFloatingSpeechBubble();
+    this.initEntranceTransition();
+
+    this.scene.add(this.tavernGroup);
   }
 
   initTavernRoom() {
-    // Atmospheric Fog & Lighting
-    this.scene.fog = new THREE.FogExp2(0x0a0c10, 0.05);
+    this.scene.fog = new THREE.FogExp2(0x0a0c10, 0.04);
 
-    const ambientLight = new THREE.AmbientLight(0x38281a, 1.4);
-    this.scene.add(ambientLight);
-
-    // Stone Wall Material
     const stoneTex = TextureGenerator.createStoneWallTexture();
     stoneTex.repeat.set(4, 2);
     const wallMat = new THREE.MeshStandardMaterial({
@@ -40,220 +48,639 @@ export class FullVRTavern {
       roughness: 0.85
     });
 
-    // Wood Plank Floor Material
     const woodTex = TextureGenerator.createWoodPlankTexture();
     woodTex.repeat.set(4, 4);
-    const floorMat = new THREE.MeshStandardMaterial({
+    const ceilingMat = new THREE.MeshStandardMaterial({
       map: woodTex,
-      roughness: 0.7
+      roughness: 0.65
     });
 
-    // Room Dimensions: 14m wide x 10m deep x 5m high
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 12), floorMat);
+    // PBR Packed Dirt & Gritty Sand Floor with Bump Normal Map (16m wide x 14m deep)
+    const dirtTex = TextureGenerator.createDirtSandFloorTexture();
+    dirtTex.repeat.set(4, 4);
+    const dirtNormal = TextureGenerator.createDirtSandFloorNormalMap();
+    dirtNormal.repeat.set(4, 4);
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: dirtTex,
+      normalMap: dirtNormal,
+      roughness: 0.88,
+      metalness: 0.05
+    });
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 14), floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
-    this.scene.add(floor);
+    this.tavernGroup.add(floor);
 
-    // Ceiling with Timber Beams
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(14, 12), floorMat);
-    ceiling.position.y = 5.0;
+    // High Timber Ceiling (y = 5.2m)
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(16, 14), ceilingMat);
+    ceiling.position.y = 5.2;
     ceiling.rotation.x = Math.PI / 2;
-    this.scene.add(ceiling);
+    this.tavernGroup.add(ceiling);
 
-    // Walls
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(14, 5), wallMat);
-    backWall.position.set(0, 2.5, -6);
-    this.scene.add(backWall);
+    // Heavy Timber Ceiling Beams
+    const beamMat = new THREE.MeshStandardMaterial({ color: 0x3e2312, roughness: 0.8 });
+    for (let z = -5; z <= 5; z += 2.5) {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(16, 0.35, 0.35), beamMat);
+      beam.position.set(0, 5.0, z);
+      this.tavernGroup.add(beam);
+    }
 
-    const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(14, 5), wallMat);
-    frontWall.position.set(0, 2.5, 6);
+    // 4 Walls
+    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(16, 5.2), wallMat);
+    backWall.position.set(0, 2.6, -7);
+    this.tavernGroup.add(backWall);
+
+    const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(16, 5.2), wallMat);
+    frontWall.position.set(0, 2.6, 7);
     frontWall.rotation.y = Math.PI;
-    this.scene.add(frontWall);
+    this.tavernGroup.add(frontWall);
 
-    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
-    leftWall.position.set(-7, 2.5, 0);
+    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(14, 5.2), wallMat);
+    leftWall.position.set(-8, 2.6, 0);
     leftWall.rotation.y = Math.PI / 2;
-    this.scene.add(leftWall);
+    this.tavernGroup.add(leftWall);
 
-    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
-    rightWall.position.set(7, 2.5, 0);
+    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(14, 5.2), wallMat);
+    rightWall.position.set(8, 2.6, 0);
     rightWall.rotation.y = -Math.PI / 2;
-    this.scene.add(rightWall);
+    this.tavernGroup.add(rightWall);
 
-    // Stained Glass Window with Moonlit Beam
-    const windowMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.8 });
-    const windowMesh = new THREE.Mesh(new THREE.CircleGeometry(1.2, 16), windowMat);
-    windowMesh.position.set(0, 3.2, -5.95);
-    this.scene.add(windowMesh);
+    // Stained Glass Window with Moonlit Light Ray (Back Wall)
+    const windowMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+    const windowMesh = new THREE.Mesh(new THREE.CircleGeometry(1.3, 24), windowMat);
+    windowMesh.position.set(0, 3.6, -6.95);
+    this.tavernGroup.add(windowMesh);
+
+    // Volumetric Moonlit Light Beam
+    const beamGeo = new THREE.CylinderGeometry(0.8, 2.2, 7.0, 16, 1, true);
+    const beamMatMesh = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+    const lightCone = new THREE.Mesh(beamGeo, beamMatMesh);
+    lightCone.position.set(0, 2.0, -3.8);
+    lightCone.rotation.x = Math.PI / 4;
+    this.tavernGroup.add(lightCone);
+  }
+
+  initLightingAndChandelier() {
+    // Warm Tavern Ambient
+    const ambientLight = new THREE.AmbientLight(0x451a03, 1.5);
+    this.tavernGroup.add(ambientLight);
+
+    // Hanging Iron Wagon-Wheel Chandelier
+    const chandelierGroup = new THREE.Group();
+    chandelierGroup.position.set(0, 4.2, 0);
+
+    const wheel = new THREE.Mesh(
+      new THREE.TorusGeometry(1.4, 0.08, 8, 24),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85 })
+    );
+    wheel.rotation.x = Math.PI / 2;
+    chandelierGroup.add(wheel);
+
+    // 4 Hanging Chains
+    const chainMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9 });
+    for (let i = 0; i < 4; i++) {
+      const angle = (i * Math.PI) / 2;
+      const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.2), chainMat);
+      chain.position.set(Math.cos(angle) * 0.7, 0.55, Math.sin(angle) * 0.7);
+      chain.rotation.z = Math.cos(angle) * 0.3;
+      chain.rotation.x = Math.sin(angle) * 0.3;
+      chandelierGroup.add(chain);
+    }
+
+    // 8 Chandelier Candles with Volumetric Flame Shaders & Warm Point Light
+    for (let c = 0; c < 8; c++) {
+      const cAngle = (c * Math.PI) / 4;
+      const candle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 0.15),
+        new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.3 })
+      );
+      candle.position.set(Math.cos(cAngle) * 1.4, 0.1, Math.sin(cAngle) * 1.4);
+      chandelierGroup.add(candle);
+
+      const cFlame = TorchFlameShader.createFlameMesh('fire');
+      cFlame.scale.set(0.35, 0.4, 0.35);
+      cFlame.position.set(Math.cos(cAngle) * 1.4, 0.18, Math.sin(cAngle) * 1.4);
+      chandelierGroup.add(cFlame);
+      this.flameMeshes.push(cFlame);
+    }
+
+    const chandelierLight = new THREE.PointLight(0xf59e0b, 3.5, 14);
+    chandelierLight.position.set(0, 0.2, 0);
+    chandelierGroup.add(chandelierLight);
+    this.torches.push({ light: chandelierLight, baseIntensity: 3.5, idx: 1 });
+
+    this.tavernGroup.add(chandelierGroup);
+
+    // Wall Sconces with Volumetric GLSL Smoky Torches
+    const torchPositions = [
+      { pos: [-7.8, 2.8, -4.0], rotY: Math.PI / 2 },
+      { pos: [-7.8, 2.8, 3.5], rotY: Math.PI / 2 },
+      { pos: [7.8, 2.8, -4.0], rotY: -Math.PI / 2 },
+      { pos: [7.8, 2.8, 3.5], rotY: -Math.PI / 2 },
+      { pos: [-3.5, 2.8, -6.8], rotY: 0 },
+      { pos: [3.5, 2.8, -6.8], rotY: 0 }
+    ];
+
+    torchPositions.forEach((cfg, idx) => {
+      const torchGroup = new THREE.Group();
+      torchGroup.position.set(...cfg.pos);
+      torchGroup.rotation.y = cfg.rotY;
+
+      // Iron Bracket & Wooden Torch
+      const bracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.35, 0.18),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 })
+      );
+      torchGroup.add(bracket);
+
+      const torchWood = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.03, 0.35),
+        new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 })
+      );
+      torchWood.position.set(0, 0.15, 0.12);
+      torchWood.rotation.x = Math.PI / 8;
+      torchGroup.add(torchWood);
+
+      const tFlame = TorchFlameShader.createFlameMesh('fire');
+      tFlame.scale.set(1.0, 1.0, 1.0);
+      tFlame.position.set(0, 0.30, 0.15);
+      torchGroup.add(tFlame);
+      this.flameMeshes.push(tFlame);
+
+      const tLight = new THREE.PointLight(0xf59e0b, 2.8, 9.0);
+      tLight.position.set(0, 0.34, 0.18);
+      torchGroup.add(tLight);
+      this.torches.push({ light: tLight, baseIntensity: 2.8, idx: idx + 2 });
+
+      // Rising Smoke Particles
+      for (let s = 0; s < 4; s++) {
+        const smoke = new THREE.Mesh(
+          new THREE.SphereGeometry(0.06, 6, 6),
+          new THREE.MeshBasicMaterial({ color: 0x334155, transparent: true, opacity: 0.35 })
+        );
+        smoke.position.set(cfg.pos[0] + (Math.random() - 0.5) * 0.1, cfg.pos[1] + 0.4 + s * 0.2, cfg.pos[2]);
+        this.smokeParticles.push({ mesh: smoke, baseY: cfg.pos[1] + 0.4, speed: 0.3 + Math.random() * 0.2 });
+        this.tavernGroup.add(smoke);
+      }
+
+      this.tavernGroup.add(torchGroup);
+    });
   }
 
   initStageAndBard() {
-    // Elevated Wooden Stage Platform (Front Center of Tavern)
-    const stageGeo = new THREE.BoxGeometry(4.5, 0.4, 2.8);
+    // Elevated Heavy Oak Stage (Front Center)
+    const stageGeo = new THREE.BoxGeometry(5.0, 0.45, 3.2);
     const woodTex = TextureGenerator.createWoodPlankTexture();
-    const stageMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.5 });
+    const stageMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.55 });
     const stage = new THREE.Mesh(stageGeo, stageMat);
-    stage.position.set(0, 0.2, -4.2);
+    stage.position.set(0, 0.225, -4.8);
     stage.receiveShadow = true;
     stage.castShadow = true;
-    this.scene.add(stage);
+    this.tavernGroup.add(stage);
 
     // Warm Spotlight on Stage
-    const stageLight = new THREE.SpotLight(0xf3cf65, 3.5, 12, Math.PI / 4, 0.4);
-    stageLight.position.set(0, 4.5, -2.5);
+    const stageLight = new THREE.SpotLight(0xfde68a, 4.2, 14, Math.PI / 3.5, 0.3);
+    stageLight.position.set(0, 4.8, -2.5);
     stageLight.target = stage;
-    this.scene.add(stageLight);
+    this.tavernGroup.add(stageLight);
 
-    // The Bard Model
+    // The Bard Model with 12-String Lute
     this.bardMesh = PatronModels.createBard();
-    this.bardMesh.position.set(0, 0.4, -4.2);
+    this.bardMesh.position.set(0, 0.45, -4.8);
     this.bardMesh.userData = { isBard: true, action: 'openPartyCreation' };
-    this.scene.add(this.bardMesh);
+    this.tavernGroup.add(this.bardMesh);
     this.interactableObjects.push(this.bardMesh);
 
-    // Stage Banner: "THE SCARLET BARD TAVERN"
+    // Stage Banner: "⚔️ SKARA BRAE TAVERN ⚔️"
     const bannerCanvas = document.createElement('canvas');
-    bannerCanvas.width = 512;
-    bannerCanvas.height = 128;
+    bannerCanvas.width = 640;
+    bannerCanvas.height = 140;
     const ctx = bannerCanvas.getContext('2d');
     ctx.fillStyle = '#7f1d1d';
-    ctx.fillRect(0, 0, 512, 128);
+    ctx.fillRect(0, 0, 640, 140);
     ctx.strokeStyle = '#f3cf65';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(10, 10, 492, 108);
+    ctx.lineWidth = 10;
+    ctx.strokeRect(8, 8, 624, 124);
     ctx.fillStyle = '#f3cf65';
-    ctx.font = 'bold 32px Georgia, serif';
+    ctx.font = 'bold 36px Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillText('⚔️ SKARA BRAE TAVERN ⚔️', 256, 75);
+    ctx.fillText('⚔️ SKARA BRAE TAVERN ⚔️', 320, 62);
+    ctx.font = '20px sans-serif';
+    ctx.fillStyle = '#fef08a';
+    ctx.fillText('Home of the Bard • Tap Bard for Party Creation', 320, 105);
 
     const bannerTex = new THREE.CanvasTexture(bannerCanvas);
     const banner = new THREE.Mesh(
-      new THREE.PlaneGeometry(3.6, 0.9),
+      new THREE.PlaneGeometry(4.2, 0.95),
       new THREE.MeshBasicMaterial({ map: bannerTex })
     );
-    banner.position.set(0, 3.6, -5.9);
-    this.scene.add(banner);
+    banner.position.set(0, 3.8, -6.85);
+    this.tavernGroup.add(banner);
   }
 
-  initPatronsAndTables() {
-    // Scatter Tables & Seated Race/Class Patrons facing the Bard's stage
+  initPatronsAndOakTables() {
+    const oakWoodMat = new THREE.MeshStandardMaterial({
+      map: TextureGenerator.createWoodPlankTexture(),
+      roughness: 0.5
+    });
+    const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85 });
+
     const patronConfigs = [
-      { createFn: PatronModels.createPaladin, pos: [-2.5, 0, -1.5], rot: Math.PI / 4, label: 'Human Paladin' },
-      { createFn: PatronModels.createWizard, pos: [2.5, 0, -1.5], rot: -Math.PI / 4, label: 'Elf Wizard' },
-      { createFn: PatronModels.createDwarf, pos: [-3.0, 0, 1.5], rot: Math.PI / 6, label: 'Dwarf Warrior' },
-      { createFn: PatronModels.createHobbit, pos: [3.0, 0, 1.5], rot: -Math.PI / 6, label: 'Hobbit Rogue' }
+      { createFn: PatronModels.createPaladin, pos: [-2.8, 0, -1.8], rot: Math.PI / 4, label: 'Human Paladin' },
+      { createFn: PatronModels.createWizard, pos: [2.8, 0, -1.8], rot: -Math.PI / 4, label: 'Elf Wizard' },
+      { createFn: PatronModels.createDwarf, pos: [-3.2, 0, 1.8], rot: Math.PI / 6, label: 'Dwarf Warrior' },
+      { createFn: PatronModels.createHobbit, pos: [3.2, 0, 1.8], rot: -Math.PI / 6, label: 'Hobbit Rogue' }
     ];
 
-    const tableMat = new THREE.MeshStandardMaterial({
-      map: TextureGenerator.createWoodPlankTexture(),
-      roughness: 0.6
-    });
-
-    patronConfigs.forEach(cfg => {
-      // Table
+    patronConfigs.forEach((cfg, idx) => {
+      // 1. Heavy Slab Oak Table
       const tableGroup = new THREE.Group();
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.08, 16), tableMat);
-      top.position.y = 0.75;
-      tableGroup.add(top);
-
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.75), tableMat);
-      leg.position.y = 0.375;
-      tableGroup.add(leg);
-
       tableGroup.position.set(cfg.pos[0], 0, cfg.pos[2]);
-      this.scene.add(tableGroup);
 
-      // Ale Mug on Table
-      const mug = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.06, 0.15),
-        new THREE.MeshStandardMaterial({ color: 0x92400e })
+      // Thick Tabletop
+      const tableTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.09, 1.1), oakWoodMat);
+      tableTop.position.y = 0.76;
+      tableGroup.add(tableTop);
+
+      // Iron Corner Brackets
+      for (let x = -1; x <= 1; x += 2) {
+        for (let z = -1; z <= 1; z += 2) {
+          const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.095, 0.12), ironMat);
+          bracket.position.set(x * 0.74, 0.76, z * 0.49);
+          tableGroup.add(bracket);
+        }
+      }
+
+      // 4 Heavy Oak Legs
+      for (let x = -1; x <= 1; x += 2) {
+        for (let z = -1; z <= 1; z += 2) {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.72, 0.12), oakWoodMat);
+          leg.position.set(x * 0.65, 0.36, z * 0.4);
+          tableGroup.add(leg);
+        }
+      }
+
+      // 2. Oak Bench
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 0.35), oakWoodMat);
+      bench.position.set(0, 0.21, 0.75);
+      tableGroup.add(bench);
+
+      this.tavernGroup.add(tableGroup);
+
+      // 3. Realistic Ale Mug with Sloshing Amber Liquid & Foam
+      const mugGroup = new THREE.Group();
+      mugGroup.position.set(cfg.pos[0] + 0.25, 0.81, cfg.pos[2] + 0.15);
+
+      // Oak Wooden Tankard Body
+      const mugBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.075, 0.085, 0.18, 16),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 })
       );
-      mug.position.set(cfg.pos[0] + 0.2, 0.85, cfg.pos[2] + 0.1);
-      this.scene.add(mug);
+      mugGroup.add(mugBody);
 
-      // Candle Light on Table
-      const candleLight = new THREE.PointLight(0xffaa33, 1.2, 4);
-      candleLight.position.set(cfg.pos[0], 0.95, cfg.pos[2]);
-      this.scene.add(candleLight);
+      // Iron Hoops
+      for (let h = -1; h <= 1; h += 2) {
+        const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.082, 0.008, 8, 16), ironMat);
+        hoop.rotation.x = Math.PI / 2;
+        hoop.position.y = h * 0.055;
+        mugGroup.add(hoop);
+      }
 
-      // Seated Patron Model
+      // Tankard Handle
+      const handle = new THREE.Mesh(
+        new THREE.TorusGeometry(0.055, 0.015, 8, 12, Math.PI),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 })
+      );
+      handle.rotation.z = -Math.PI / 2;
+      handle.position.set(0.085, 0, 0);
+      mugGroup.add(handle);
+
+      // Golden Amber Ale Liquid Surface
+      const aleMat = new THREE.MeshStandardMaterial({
+        color: 0xd97706,
+        roughness: 0.2,
+        metalness: 0.1
+      });
+      const aleSurface = new THREE.Mesh(new THREE.CircleGeometry(0.068, 16), aleMat);
+      aleSurface.rotation.x = -Math.PI / 2;
+      aleSurface.position.y = 0.078;
+      aleSurface.name = 'aleSurface';
+      mugGroup.add(aleSurface);
+
+      // Frothy White Ale Foam
+      const foam = new THREE.Mesh(
+        new THREE.RingGeometry(0.04, 0.07, 16),
+        new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 })
+      );
+      foam.rotation.x = -Math.PI / 2;
+      foam.position.y = 0.081;
+      mugGroup.add(foam);
+
+      // Invisible Hit Box for Easy Clicking & Reticle Aiming
+      const mugHitBox = new THREE.Mesh(
+        new THREE.BoxGeometry(0.24, 0.28, 0.24),
+        new THREE.MeshBasicMaterial({ visible: false })
+      );
+      mugHitBox.position.y = 0.05;
+      mugGroup.add(mugHitBox);
+
+      mugGroup.userData = {
+        isAleMug: true,
+        mugIdx: idx,
+        isDrinking: false,
+        fillLevel: 1.0
+      };
+
+      this.aleMugs.push(mugGroup);
+      this.tavernGroup.add(mugGroup);
+      this.interactableObjects.push(mugHitBox, mugGroup);
+
+      // 4. Magical Multi-Colored Candle on Table (Paladin: amber, Wizard: blue, Dwarf: amber, Hobbit: violet)
+      const candleColors = ['fire', 'blue', 'fire', 'violet'];
+      const lightColors = [0xffaa33, 0x38bdf8, 0xffaa33, 0xc084fc];
+
+      const candle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.03, 0.12, 12),
+        new THREE.MeshStandardMaterial({ color: 0xfef9c3, roughness: 0.4 })
+      );
+      candle.position.set(cfg.pos[0] - 0.35, 0.87, cfg.pos[2]);
+      this.tavernGroup.add(candle);
+
+      const tableFlame = TorchFlameShader.createFlameMesh(candleColors[idx]);
+      tableFlame.scale.set(0.4, 0.45, 0.4);
+      tableFlame.position.set(cfg.pos[0] - 0.35, 0.93, cfg.pos[2]);
+      this.tavernGroup.add(tableFlame);
+      this.flameMeshes.push(tableFlame);
+
+      const cLight = new THREE.PointLight(lightColors[idx], 1.4, 4.5);
+      cLight.position.set(cfg.pos[0] - 0.35, 0.96, cfg.pos[2]);
+      this.tavernGroup.add(cLight);
+      this.torches.push({ light: cLight, baseIntensity: 1.4, idx: 20 + idx });
+
+      // 5. Seated Patron Model
       const patron = cfg.createFn();
-      patron.position.set(cfg.pos[0], 0, cfg.pos[2] + 0.6);
+      patron.position.set(cfg.pos[0], 0, cfg.pos[2] + 0.65);
       patron.rotation.y = cfg.rot;
-      this.scene.add(patron);
+      this.tavernGroup.add(patron);
     });
+  }
+
+  initMountedTrophiesAndWeapons() {
+    const shieldWood = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.6 });
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xf3cf65, metalness: 0.85 });
+
+    // 1. MOUNTED GREEN DRAGON HEAD TROPHY (Back Wall Left)
+    const dragonPlaque = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.1), shieldWood);
+    dragonPlaque.position.set(-4.5, 3.2, -6.9);
+    this.tavernGroup.add(dragonPlaque);
+
+    const dragonGroup = new THREE.Group();
+    dragonGroup.position.set(-4.5, 3.2, -6.8);
+
+    // Green Scaled Snout & Head
+    const dragonMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.6 });
+    const dHead = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.8, 8), dragonMat);
+    dHead.rotation.x = Math.PI / 2;
+    dragonGroup.add(dHead);
+
+    // Golden Horns
+    for (let i = -1; i <= 1; i += 2) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.45, 8), goldMat);
+      horn.position.set(i * 0.22, 0.25, -0.15);
+      horn.rotation.z = (i * Math.PI) / 4;
+      dragonGroup.add(horn);
+    }
+
+    // Glowing Yellow Eyes
+    for (let i = -1; i <= 1; i += 2) {
+      const eye = new THREE.Mesh(
+        new THREE.SphereGeometry(0.04, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+      );
+      eye.position.set(i * 0.16, 0.12, 0.15);
+      dragonGroup.add(eye);
+    }
+    this.tavernGroup.add(dragonGroup);
+
+    // 2. MOUNTED DIRE WOLF TROPHY (Right Wall)
+    const wolfPlaque = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 1.2), shieldWood);
+    wolfPlaque.position.set(7.9, 3.2, -1.5);
+    this.tavernGroup.add(wolfPlaque);
+
+    const wolfGroup = new THREE.Group();
+    wolfGroup.position.set(7.8, 3.2, -1.5);
+    wolfGroup.rotation.y = -Math.PI / 2;
+
+    const furMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
+    const wolfSnout = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.65, 8), furMat);
+    wolfSnout.rotation.x = Math.PI / 2;
+    wolfGroup.add(wolfSnout);
+
+    // Wolf Fangs
+    for (let i = -1; i <= 1; i += 2) {
+      const fang = new THREE.Mesh(
+        new THREE.ConeGeometry(0.02, 0.08, 6),
+        new THREE.MeshStandardMaterial({ color: 0xf8fafc })
+      );
+      fang.position.set(i * 0.08, -0.06, 0.28);
+      fang.rotation.x = Math.PI;
+      wolfGroup.add(fang);
+    }
+    this.tavernGroup.add(wolfGroup);
+
+    // 3. MOUNTED CROSSED WEAPONS & HEATER SHIELD (Back Wall Right)
+    const wallShield = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.45, 0.45, 0.04, 16),
+      new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 })
+    );
+    wallShield.rotation.x = Math.PI / 2;
+    wallShield.position.set(4.5, 3.2, -6.9);
+    this.tavernGroup.add(wallShield);
+
+    for (let i = -1; i <= 1; i += 2) {
+      const crossedSword = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.4, 0.02), steelMat);
+      crossedSword.position.set(4.5, 3.2, -6.85);
+      crossedSword.rotation.z = (i * Math.PI) / 4;
+      this.tavernGroup.add(crossedSword);
+    }
+
+    // 4. STACKED ALE CASKS & BARRELS (Back Right Corner)
+    const barrelWood = new THREE.MeshStandardMaterial({ color: 0x5c2b0e, roughness: 0.7 });
+    for (let b = 0; b < 3; b++) {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.9, 16), barrelWood);
+      barrel.position.set(6.8 - b * 0.45, 0.45, -5.8);
+      this.tavernGroup.add(barrel);
+
+      const spigot = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12), goldMat);
+      spigot.rotation.x = Math.PI / 2;
+      spigot.position.set(6.8 - b * 0.45, 0.35, -5.35);
+      this.tavernGroup.add(spigot);
+    }
   }
 
   initExitDoor() {
-    // Tavern Exit Door (Right Wall)
+    // Tavern Exit Door (Right Wall at x = 7.85)
     const doorGroup = new THREE.Group();
-    doorGroup.position.set(6.9, 0, 0);
+    doorGroup.position.set(7.85, 0, 0);
     doorGroup.rotation.y = -Math.PI / 2;
 
     const doorMat = new THREE.MeshStandardMaterial({
       map: TextureGenerator.createWoodPlankTexture(),
-      roughness: 0.7
+      roughness: 0.65
     });
 
-    // Frame & Door Mesh
-    const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.2, 0.15), doorMat);
+    const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.8, 3.2, 0.18), doorMat);
     doorFrame.position.y = 1.6;
+    doorFrame.userData = { isDoor: true, action: 'exitGame' };
     doorGroup.add(doorFrame);
 
-    // Door Plate & Handle
-    const handleMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 });
-    const handle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), handleMat);
-    handle.position.set(0.5, 1.5, 0.12);
+    // Wrought Iron Straps & Handle
+    const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 });
+    const strapTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.22), ironMat);
+    strapTop.position.set(0, 2.5, 0);
+    strapTop.userData = { isDoor: true, action: 'exitGame' };
+    doorGroup.add(strapTop);
+
+    const strapBottom = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.22), ironMat);
+    strapBottom.position.set(0, 0.7, 0);
+    strapBottom.userData = { isDoor: true, action: 'exitGame' };
+    doorGroup.add(strapBottom);
+
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.32), ironMat);
+    handle.position.set(0.6, 1.5, 0.14);
+    handle.userData = { isDoor: true, action: 'exitGame' };
     doorGroup.add(handle);
 
-    // Sign Above Door: "EXIT TO SKARA BRAE"
+    // Golden Emissive Glowing Highlight Frame Outline (visible on hover / proximity)
+    const highlightMat = new THREE.MeshBasicMaterial({
+      color: 0xf3cf65,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.0,
+      visible: false
+    });
+    this.doorHighlightFrame = new THREE.Mesh(new THREE.BoxGeometry(1.88, 3.28, 0.24), highlightMat);
+    this.doorHighlightFrame.position.y = 1.6;
+    this.doorHighlightFrame.userData = { isDoor: true, action: 'exitGame' };
+    doorGroup.add(this.doorHighlightFrame);
+
+    // Glowing Sign Above Door: "🚪 EXIT TO SKARA BRAE"
     const signCanvas = document.createElement('canvas');
-    signCanvas.width = 256;
-    signCanvas.height = 64;
+    signCanvas.width = 480;
+    signCanvas.height = 100;
     const ctx = signCanvas.getContext('2d');
-    ctx.fillStyle = '#331a00';
-    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 480, 100);
+    ctx.strokeStyle = '#f3cf65';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(6, 6, 468, 88);
     ctx.fillStyle = '#f3cf65';
-    ctx.font = 'bold 20px Georgia, serif';
+    ctx.font = 'bold 22px Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillText('🚪 EXIT GAME', 128, 40);
+    ctx.fillText("🚪 EXIT TO SKARA BRAE", 240, 42);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText("Enter Garth's Shop / Streets", 240, 76);
 
     const signTex = new THREE.CanvasTexture(signCanvas);
     const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.2, 0.35),
+      new THREE.PlaneGeometry(1.6, 0.36),
       new THREE.MeshBasicMaterial({ map: signTex })
     );
-    sign.position.set(0, 3.4, 0.1);
+    sign.position.set(0, 3.4, 0.12);
+    sign.userData = { isDoor: true, action: 'exitGame' };
     doorGroup.add(sign);
+    this.doorSignMesh = sign;
+
+    // Generous Invisible Doorway Trigger Collider (covers entire doorway zone)
+    const doorCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 3.8, 1.4),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    doorCollider.position.y = 1.6;
+    doorCollider.userData = { isDoor: true, action: 'exitGame' };
+    doorGroup.add(doorCollider);
 
     doorGroup.userData = { isDoor: true, action: 'exitGame' };
     this.exitDoorMesh = doorGroup;
-    this.scene.add(doorGroup);
-    this.interactableObjects.push(doorFrame);
+    this.tavernGroup.add(doorGroup);
+    this.interactableObjects.push(doorCollider, doorFrame, strapTop, strapBottom, handle, sign, doorGroup);
+  }
+
+  setDoorHighlighted(isHighlighted) {
+    this.isDoorHighlighted = !!isHighlighted;
+    if (this.doorHighlightFrame) {
+      this.doorHighlightFrame.visible = this.isDoorHighlighted;
+      this.doorHighlightFrame.material.opacity = this.isDoorHighlighted ? 0.95 : 0.0;
+    }
+    if (this.doorSignMesh) {
+      this.doorSignMesh.scale.setScalar(this.isDoorHighlighted ? 1.06 : 1.0);
+    }
+  }
+
+  checkDoorProximity(worldPos, maxDistance = 2.5) {
+    if (!worldPos) return false;
+    const doorX = 7.85;
+    const doorZ = 0.0;
+    const dist = Math.hypot(worldPos.x - doorX, worldPos.z - doorZ);
+    return dist <= maxDistance;
   }
 
   initFireplace() {
-    // Cozy Stone Fireplace on Left Wall
+    // Grand Stone Hearth on Left Wall
     const fireplace = new THREE.Group();
-    fireplace.position.set(-6.8, 0, -2.5);
+    fireplace.position.set(-7.8, 0, -2.0);
     fireplace.rotation.y = Math.PI / 2;
 
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.9 });
-    const mantle = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.4, 0.8), stoneMat);
-    mantle.position.y = 1.2;
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.95 });
+
+    // Mantle & Chimney Stack
+    const mantle = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.8, 1.0), stoneMat);
+    mantle.position.y = 1.4;
     fireplace.add(mantle);
 
-    // Fire Point Light
-    const fireLight = new THREE.PointLight(0xff5500, 3.5, 10);
-    fireLight.position.set(0, 0.6, 0.5);
-    fireplace.add(fireLight);
-    this.torches.push({ light: fireLight, baseIntensity: 3.5, idx: 99 });
+    // Firebox Cavity
+    const cavity = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 1.4, 0.7),
+      new THREE.MeshBasicMaterial({ color: 0x0a0a0a })
+    );
+    cavity.position.set(0, 0.7, 0.2);
+    fireplace.add(cavity);
 
-    this.scene.add(fireplace);
+    // Burning Oak Logs
+    const logMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 });
+    for (let l = 0; l < 3; l++) {
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 8), logMat);
+      log.rotation.z = Math.PI / 2 + (l - 1) * 0.2;
+      log.position.set(0, 0.2 + l * 0.08, 0.25);
+      fireplace.add(log);
+    }
+
+    // Glowing Volumetric Flame Core
+    const fireCore = TorchFlameShader.createFlameMesh('fire');
+    fireCore.scale.set(2.4, 2.8, 2.4);
+    fireCore.position.set(0, 0.35, 0.25);
+    fireplace.add(fireCore);
+    this.flameMeshes.push(fireCore);
+
+    // Fireplace Point Light
+    const fireLight = new THREE.PointLight(0xff5500, 4.5, 12);
+    fireLight.position.set(0, 0.6, 0.6);
+    fireplace.add(fireLight);
+    this.torches.push({ light: fireLight, baseIntensity: 4.5, idx: 99 });
+
+    this.tavernGroup.add(fireplace);
   }
 
   initFloatingSpeechBubble() {
-    // Canvas texture for 3D Floating Speech Lyric next to Bard's face
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 128;
@@ -266,9 +693,9 @@ export class FullVRTavern {
       depthTest: false
     });
 
-    this.speechBubbleMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), mat);
-    this.speechBubbleMesh.position.set(1.3, 2.2, -4.2);
-    this.scene.add(this.speechBubbleMesh);
+    this.speechBubbleMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), mat);
+    this.speechBubbleMesh.position.set(1.4, 2.3, -4.8);
+    this.tavernGroup.add(this.speechBubbleMesh);
 
     this.updateLyricText("🎵 The Evil in Skara Brae");
   }
@@ -280,8 +707,7 @@ export class FullVRTavern {
     ctx.clearRect(0, 0, 512, 128);
 
     if (text) {
-      // Speech Bubble Background
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.strokeStyle = '#f3cf65';
       ctx.lineWidth = 6;
       ctx.beginPath();
@@ -289,7 +715,6 @@ export class FullVRTavern {
       ctx.fill();
       ctx.stroke();
 
-      // Text
       ctx.fillStyle = '#f3cf65';
       ctx.font = 'bold 24px Georgia, serif';
       ctx.textAlign = 'center';
@@ -299,15 +724,124 @@ export class FullVRTavern {
     this.speechTexture.needsUpdate = true;
   }
 
-  update(time) {
-    // Torch Flickering
-    this.torches.forEach(t => {
-      t.light.intensity = t.baseIntensity + Math.sin(time * 14 + t.idx) * 0.5 + Math.cos(time * 9) * 0.3;
+  drinkMug(mugGroup, onToast) {
+    if (!mugGroup) return;
+
+    // Trigger drink animation
+    mugGroup.userData.isDrinking = true;
+    mugGroup.position.y += 0.08;
+    mugGroup.rotation.x = -Math.PI / 6;
+
+    if (onToast) {
+      onToast("🍺 *Glug glug glug* A refreshing pint of Skara Brae Dark Ale!");
+    }
+
+    setTimeout(() => {
+      mugGroup.rotation.x = 0;
+      mugGroup.position.y -= 0.08;
+      mugGroup.userData.isDrinking = false;
+    }, 1200);
+  }
+
+  initEntranceTransition() {
+    // Dimensional Golden Rift / Ripple Entrance Effect at spawn point (x = 0, y = 1.18, z = 1.2)
+    const riftGroup = new THREE.Group();
+    riftGroup.position.set(0, 1.18, 0.4);
+
+    for (let r = 0; r < 4; r++) {
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: r % 2 === 0 ? 0xf3cf65 : 0xa855f7,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.0,
+        blending: THREE.AdditiveBlending
+      });
+
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.08 + r * 0.12, 0.14 + r * 0.12, 32),
+        ringMat
+      );
+      ring.name = `riftRing_${r}`;
+      riftGroup.add(ring);
+    }
+
+    this.riftEffectGroup = riftGroup;
+    this.riftEffectGroup.visible = false;
+    this.tavernGroup.add(riftGroup);
+  }
+
+  playEntranceTransition() {
+    if (!this.riftEffectGroup) return;
+    this.riftEffectGroup.visible = true;
+    this.riftTransitionTime = 0.0;
+    this.isRiftActive = true;
+  }
+
+  update(time, deltaTime = 0.016) {
+    if (!this.tavernGroup.visible) return;
+
+    // 1. Update Volumetric Torch, Chandelier & Candle Flame Shaders
+    this.flameMeshes.forEach(f => {
+      if (f && f.update) {
+        f.update(time);
+      }
     });
 
-    // Make speech bubble float gently
-    if (this.speechBubbleMesh) {
-      this.speechBubbleMesh.position.y = 2.2 + Math.sin(time * 2) * 0.05;
+    // 2. Torch & Fireplace Flickering
+    this.torches.forEach(t => {
+      t.light.intensity = t.baseIntensity + Math.sin(time * 12 + t.idx) * 0.45 + Math.cos(time * 8) * 0.25;
+    });
+
+    // 3. Rising Smoke Particles
+    this.smokeParticles.forEach(p => {
+      p.mesh.position.y += 0.005 * p.speed;
+      if (p.mesh.position.y > p.baseY + 1.2) {
+        p.mesh.position.y = p.baseY;
+      }
+    });
+
+    // 4. Sloshing Ale Liquid Surfaces
+    this.aleMugs.forEach((m, idx) => {
+      const surface = m.getObjectByName('aleSurface');
+      if (surface) {
+        surface.rotation.z = Math.sin(time * 4 + idx) * 0.08;
+      }
+    });
+
+    // 5. Bard Strumming Arm Animation during Performance
+    if (this.bardMesh) {
+      const strumArm = this.bardMesh.getObjectByName('strummingArm');
+      if (strumArm) {
+        strumArm.rotation.z = 0.6 + Math.sin(time * 6) * 0.12;
+      }
     }
+
+    // 6. Speech Bubble Gentle Float
+    if (this.speechBubbleMesh) {
+      this.speechBubbleMesh.position.y = 2.3 + Math.sin(time * 2) * 0.06;
+    }
+
+    // 7. Dimensional Golden Rift Entrance Dissolve Animation
+    if (this.isRiftActive && this.riftEffectGroup) {
+      this.riftTransitionTime = (this.riftTransitionTime || 0) + (deltaTime || 0.016);
+      const duration = 1.4;
+      const progress = Math.min(1.0, this.riftTransitionTime / duration);
+
+      this.riftEffectGroup.children.forEach((ring, idx) => {
+        const ringProgress = Math.max(0, Math.min(1.0, progress * 1.4 - idx * 0.15));
+        const scale = 1.0 + ringProgress * (3.8 + idx * 0.9);
+        ring.scale.set(scale, scale, 1.0);
+        ring.material.opacity = (1.0 - ringProgress) * 0.95;
+      });
+
+      if (progress >= 1.0) {
+        this.isRiftActive = false;
+        this.riftEffectGroup.visible = false;
+      }
+    }
+  }
+
+  setVisible(visible) {
+    this.tavernGroup.visible = visible;
   }
 }

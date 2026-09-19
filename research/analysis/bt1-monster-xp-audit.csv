@@ -1,0 +1,128 @@
+internal_id,slug,name,original_index_hex,hp_range,ac_range,damage,special_attacks,stored_byte_hex,decoding_rule,xp_value,gold_est,source_provenance,confidence
+0,kobold,Kobold,0x00,4-7,1-8,1d4,,0x3C,literal,60,24,bt1-c64-1985-table,verified
+1,hobbit,Hobbit,0x01,6-9,1-8,1d4,,0x46,literal,70,28,bt1-c64-1985-table,verified
+2,gnome,Gnome,0x02,2-9,1-8,2d4,,0x50,literal,80,32,bt1-c64-1985-table,verified
+3,dwarf,Dwarf,0x03,6-13,1-8,2d4,,0x50,literal,80,32,bt1-c64-1985-table,verified
+4,thief,Thief,0x04,2-9,1-4,2d4,,0x5A,literal,90,36,bt1-c64-1985-table,verified
+5,hobgoblin,Hobgoblin,0x05,4-11,1-8,2d4,,0x5A,literal,90,36,bt1-c64-1985-table,verified
+6,conjurer_06,Conjurer,0x06,2-9,1-4,1d4,castSpell,0x64,literal,100,40,bt1-c64-1985-table,verified
+7,magician_07,Magician,0x07,2-9,1-4,1d4,castSpell,0x64,literal,100,40,bt1-c64-1985-table,verified
+8,orc,Orc,0x08,6-13,1-8,3d4,,0x64,literal,100,40,bt1-c64-1985-table,verified
+9,skeleton,Skeleton,0x09,8-15,1-4,3d4,,0x6E,literal,110,44,bt1-c64-1985-table,verified
+10,nomad,Nomad,0x0A,8-15,1-4,3d4,,0x78,literal,120,48,bt1-c64-1985-table,verified
+11,spider,Spider,0x0B,4-11,1-4,3d4,,0x96,literal,150,60,bt1-c64-1985-table,verified
+12,mad_dog,Mad Dog,0x0C,4-11,1-8,2d4,,0xB4,literal,180,72,bt1-c64-1985-table,verified
+13,barbarian,Barbarian,0x0D,10-17,1-8,4d4,,0xC8,literal,200,80,bt1-c64-1985-table,verified
+14,mercenary,Mercenary,0x0E,8-15,1-4,3d4,,0xDC,literal,220,88,bt1-c64-1985-table,verified
+15,wolf,Wolf,0x0F,10-17,1-8,4d4,,0x01,val*256,256,102,bt1-c64-1985-table,verified
+16,jade_monk,Jade Monk,0x10,2-9,1-4,5d4,,0x01,val*256,256,102,bt1-c64-1985-table,verified
+17,half_orc,Half Orc,0x11,12-19,1-8,4d4,,0x01,val*256,256,102,bt1-c64-1985-table,verified
+18,swordsman,Swordsman,0x12,12-19,1-4,4d4,,0x02,val*256,512,204,bt1-c64-1985-table,verified
+19,zombie,Zombie,0x13,12-19,1-4,5d4,,0x02,val*256,512,204,bt1-c64-1985-table,verified
+20,conjurer_20,Conjurer,0x14,2-9,1-4,3d4,castSpell,0x02,val*256,512,204,bt1-c64-1985-table,verified
+21,magician_21,Magician,0x15,2-9,1-4,3d4,castSpell,0x02,val*256,512,204,bt1-c64-1985-table,verified
+22,sorcerer_22,Sorcerer,0x16,2-9,1-4,3d4,castSpell,0x03,val*256,768,307,bt1-c64-1985-table,verified
+23,wizard_23,Wizard,0x17,2-9,1-4,3d4,castSpell,0x03,val*256,768,307,bt1-c64-1985-table,verified
+24,samurai,Samurai,0x18,4-19,1-8,5d4,,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+25,black_widow,Black Widow,0x19,2-17,1-8,5d4,poison,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+26,assassin,Assassin,0x1A,2-17,1-8,4d4,,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+27,werewolf,Werewolf,0x1B,4-19,1-4,5d4,,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+28,ogre,Ogre,0x1C,8-23,1-4,6d4,,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+29,wight,Wight,0x1D,6-21,1-4,5d4,wither,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+30,statue,Statue,0x1E,8-23,1-4,5d4,,0x04,val*256,1024,409,bt1-c64-1985-table,verified
+31,bladesman,Bladesman,0x1F,12-27,1-8,6d4,,0x05,val*256,1280,512,bt1-c64-1985-table,verified
+32,goblin_lord,Goblin Lord,0x20,12-27,1-4,6d4,,0x05,val*256,1280,512,bt1-c64-1985-table,verified
+33,master_thief,Master Thief,0x21,10-25,1-4,5d4,,0x05,val*256,1280,512,bt1-c64-1985-table,verified
+34,conjurer_34,Conjurer,0x22,2-17,1-8,5d4,castSpell,0x05,val*256,1280,512,bt1-c64-1985-table,verified
+35,magician_35,Magician,0x23,2-17,1-8,5d4,castSpell,0x06,val*256,1536,614,bt1-c64-1985-table,verified
+36,sorcerer_36,Sorcerer,0x24,2-17,1-8,5d4,castSpell,0x06,val*256,1536,614,bt1-c64-1985-table,verified
+37,wizard_37,Wizard,0x25,2-17,1-4,5d4,castSpell,0x06,val*256,1536,614,bt1-c64-1985-table,verified
+38,ninja,Ninja,0x26,8-23,1-8,7d4,,0x06,val*256,1536,614,bt1-c64-1985-table,verified
+39,spinner,Spinner,0x27,12-27,1-8,7d4,poison,0x07,val*256,1792,716,bt1-c64-1985-table,verified
+40,scarlet_monk,Scarlet Monk,0x28,4-19,1-4,8d4,,0x07,val*256,1792,716,bt1-c64-1985-table,verified
+41,doppleganger,Doppleganger,0x29,8-23,1-1,7d4,doppleganger,0x07,val*256,1792,716,bt1-c64-1985-table,verified
+42,stone_giant,Stone Giant,0x2A,2-33,1-8,9d4,,0x07,val*256,1792,716,bt1-c64-1985-table,verified
+43,ogre_magician,Ogre Magician,0x2B,14-29,1-8,8d4,,0x08,val*256,2048,819,bt1-c64-1985-table,verified
+44,jackalwere,Jackalwere,0x2C,14-29,1-8,8d4,,0x08,val*256,2048,819,bt1-c64-1985-table,verified
+45,stone_elemental,Stone Elemental,0x2D,2-33,1-4,8d4,,0x08,val*256,2048,819,bt1-c64-1985-table,verified
+46,blue_dragon,Blue Dragon,0x2E,6-37,1-8,9d4,breath,0x08,val*256,2048,819,bt1-c64-1985-table,verified
+47,seeker,Seeker,0x2F,2-33,1-8,8d4,,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+48,dwarf_king,Dwarf King,0x30,4-35,1-8,8d4,,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+49,samurai_lord,Samurai Lord,0x31,6-37,1-4,9d4,,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+50,ghoul,Ghoul,0x32,2-33,1-8,9d4,wither,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+51,conjurer_51,Conjurer,0x33,2-33,1-8,7d4,castSpell,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+52,magician_52,Magician,0x34,2-33,1-8,7d4,castSpell,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+53,sorcerer_53,Sorcerer,0x35,2-33,1-8,7d4,castSpell,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+54,wizard_54,Wizard,0x36,6-37,1-4,7d4,castSpell,0x09,val*256,2304,921,bt1-c64-1985-table,verified
+55,azure_monk,Azure Monk,0x37,8-39,1-4,11d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+56,weretiger,Weretiger,0x38,8-39,1-8,10d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+57,hydra,Hydra,0x39,4-35,1-8,10d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+58,green_dragon,Green Dragon,0x3A,8-39,1-4,11d4,breath,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+59,wraith,Wraith,0x3B,10-41,1-8,11d4,insanity,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+60,lurker,Lurker,0x3C,4-35,1-8,11d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+61,fire_giant,Fire Giant,0x3D,12-43,1-8,12d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+62,copper_dragon,Copper Dragon,0x3E,14-45,1-4,12d4,breath,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+63,ivory_monk,Ivory Monk,0x3F,4-35,1-8,14d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+64,shadow,Shadow,0x40,6-37,1-8,12d4,insanity,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+65,berserker,Berserker,0x41,10-41,1-8,12d4,,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+66,conjurer_66,Conjurer,0x42,10-41,1-8,9d4,castSpell,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+67,magician_67,Magician,0x43,10-41,1-8,9d4,castSpell,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+68,sorcerer_68,Sorcerer,0x44,12-43,1-4,9d4,castSpell,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+69,wizard_69,Wizard,0x45,10-41,1-8,9d4,castSpell,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+70,white_dragon,White Dragon,0x46,14-45,1-4,12d4,breath,0x0A,val*256,2560,1024,bt1-c64-1985-table,verified
+71,ice_giant,Ice Giant,0x47,2-65,1-8,13d4,,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+72,eye_spy,Eye Spy,0x48,2-65,1-16,12d4,poison,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+73,ogre_lord,Ogre Lord,0x49,2-65,1-8,13d4,,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+74,body_snatcher,Body Snatcher,0x4A,6-69,1-16,12d4,possess,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+75,xorn,Xorn,0x4B,4-67,1-8,13d4,,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+76,phantom,Phantom,0x4C,4-67,1-8,14d4,drain,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+77,lesser_demon,Lesser Demon,0x4D,10-73,1-8,15d4,wither,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+78,fred,Fred,0x4E,4-67,1-1,13d4,castSpell,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+79,conjurer_79,Conjurer,0x4F,2-65,1-8,11d4,castSpell,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+80,magician_80,Magician,0x50,2-65,1-8,11d4,castSpell,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+81,sorcerer_81,Sorcerer,0x51,2-65,1-8,11d4,castSpell,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+82,wizard_82,Wizard,0x52,4-67,1-4,11d4,castSpell,0x0B,val*256,2816,1126,bt1-c64-1985-table,verified
+83,master_ninja,Master Ninja,0x53,6-69,1-8,15d4,critical,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+84,war_giant,War Giant,0x54,6-69,1-8,16d4,,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+85,warrior_elite,Warrior Elite,0x55,4-67,1-16,16d4,,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+86,bone_crusher,Bone Crusher,0x56,4-67,1-8,15d4,,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+87,ghost,Ghost,0x57,6-69,1-1,17d4,wither,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+88,grey_dragon,Grey Dragon,0x58,8-71,1-4,18d4,breath,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+89,basilisk,Basilisk,0x59,4-67,1-8,17d4,stone,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+90,evil_eye,Evil Eye,0x5A,2-65,1-16,17d4,poison,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+91,mimic,Mimic,0x5B,4-67,1-1,17d4,doppleganger,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+92,golem,Golem,0x5C,4-67,1-8,19d4,,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+93,vampire,Vampire,0x5D,8-71,1-8,20d4,drain,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+94,demon,Demon,0x5E,2-129,1-8,21d4,insanity,0x0C,val*256,3072,1228,bt1-c64-1985-table,verified
+95,bandersnatch,Bandersnatch,0x5F,12-75,1-32,20d4,,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+96,maze_dweller,Maze Dweller,0x60,10-13,1-64,20d4,,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+97,mongo,Mongo,0x61,14-77,1-4,21d4,stone,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+98,mangar_guard,Mangar Guard,0x62,5-132,1-32,21d4,,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+99,gimp,Gimp,0x63,2-129,1-99,17d4,,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+100,red_dragon,Red Dragon,0x64,5-132,1-4,24d4,breath,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+101,titan,Titan,0x65,7-134,1-8,23d4,,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+102,master_conjurer,Master Conjurer,0x66,14-77,1-8,17d4,castSpell,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+103,master_magician,Master Magician,0x67,14-77,1-8,17d4,castSpell,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+104,master_sorcerer,Master Sorcerer,0x68,14-77,1-8,17d4,castSpell,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+105,mind_shadow,Mind Shadow,0x69,12-75,1-16,20d4,,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+106,spectre,Spectre,0x6A,5-132,1-8,23d4,drain,0x0D,val*256,3328,1331,bt1-c64-1985-table,verified
+107,cloud_giant,Cloud Giant,0x6B,7-134,1-8,25d4,,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+108,beholder,Beholder,0x6C,3-130,1-4,23d4,poison,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+109,vampire_lord,Vampire Lord,0x6D,7-134,1-4,26d4,drain,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+110,greater_demon,Greater Demon,0x6E,13-140,1-8,28d4,possess,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+111,master_wizard,Master Wizard,0x6F,2-129,1-4,19d4,castSpell,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+112,mad_god,Mad God,0x70,7-134,1-16,22d4,stone,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+113,maze_master,Maze Master,0x71,11-138,1-32,22d4,castSpell,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+114,death_denizen,Death Denizen,0x72,11-14,1-64,22d4,,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+115,jabberwock,Jabberwock,0x73,9-136,1-8,25d4,breath,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+116,black_dragon,Black Dragon,0x74,11-138,1-8,27d4,breath,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+117,mangar,Mangar,0x75,15-255,1-1,25d4,critical,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+118,crystal_golem,Crystal Golem,0x76,13-140,1-1,29d4,,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+119,soul_sucker,Soul Sucker,0x77,11-138,1-8,29d4,breath,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+120,storm_giant,Storm Giant,0x78,15-142,1-8,31d4,,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+121,ancient_enemy,Ancient Enemy,0x79,15-142,1-8,30d4,wither,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+122,balrog,Balrog,0x7A,13-140,1-99,22d4,insanity,0x0E,val*256,3584,1433,bt1-c64-1985-table,verified
+123,lich,Lich,0x7B,15-255,1-8,24d4,possess,0x0F,val*256,3840,1536,bt1-c64-1985-table,verified
+124,archmage,Archmage,0x7C,5-255,1-8,22d4,critical,0x0F,val*256,3840,1536,bt1-c64-1985-table,verified
+125,demon_lord,Demon Lord,0x7D,15-255,1-8,32d4,stone,0x0F,val*256,3840,1536,bt1-c64-1985-table,verified
+126,old_man,Old Man,0x7E,1-255,1-4,32d4,critical,0x0F,val*256,3840,1536,bt1-c64-1985-table,verified
