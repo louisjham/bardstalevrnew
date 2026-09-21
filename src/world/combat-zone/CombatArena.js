@@ -3,6 +3,7 @@ import { TextureGenerator } from '../../textures/TextureGenerator.js';
 import { PatronModels } from '../PatronModels.js';
 import { CombatEngine } from '../../core/combat/CombatEngine.js';
 import { BardSongs } from '../../data/BardSongs.js';
+import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
 
 export class CombatArena {
   constructor(scene, camera, onCombatEnd) {
@@ -11,6 +12,8 @@ export class CombatArena {
     this.onCombatEnd = onCombatEnd;
     
     this.combatEngine = new CombatEngine();
+    this.spriteManager = new AnimatedSpriteManager();
+    this.animatedUpdaters = [];
     this.currentSongIndex = 0;
 
     this.arenaGroup = new THREE.Group();
@@ -268,35 +271,40 @@ export class CombatArena {
   }
 
   renderMonsterFormation() {
-    // Clear previous monster models
+    // Clear previous monster models and updaters
     while (this.monsterGroupMesh.children.length > 0) {
       this.monsterGroupMesh.remove(this.monsterGroupMesh.children[0]);
     }
+    this.animatedUpdaters = [];
 
-    // Position Monster Group at a Distance (z = -4.2m)
-    this.activeMonsters.forEach((m, idx) => {
-      const xPos = (idx - (this.activeMonsters.length - 1) / 2) * 1.3;
+    // Position Monster Group at a Distance (z = -3.8m)
+    this.activeMonsters.forEach(async (m, idx) => {
+      const xPos = (idx - (this.activeMonsters.length - 1) / 2) * 1.4;
 
-      const monsterMesh = new THREE.Group();
-      monsterMesh.position.set(xPos, 0, -4.2);
+      const monsterContainer = new THREE.Group();
+      monsterContainer.position.set(xPos, 0, -3.8);
 
-      const bodyMat = new THREE.MeshStandardMaterial({
-        color: m.name.includes('Skeleton') ? 0xe2e8f0 : 0xb91c1c,
-        roughness: 0.6
-      });
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.28, 1.2), bodyMat);
-      body.position.y = 0.6;
-      monsterMesh.add(body);
+      // Base runic shadow ring
+      const shadowRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.3, 0.6, 16),
+        new THREE.MeshBasicMaterial({ color: 0xb91c1c, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
+      );
+      shadowRing.rotation.x = Math.PI / 2;
+      shadowRing.position.y = 0.02;
+      monsterContainer.add(shadowRing);
 
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), bodyMat);
-      head.position.y = 1.35;
-      monsterMesh.add(head);
+      try {
+        const slug = m.slug || m.name.toLowerCase().replace(/\s+/g, '_');
+        const animated = await this.spriteManager.createAnimatedBillboard(slug, 4);
+        animated.mesh.position.set(0, 1.1, 0);
+        animated.mesh.scale.set(1.4, 1.4, 1.4);
+        monsterContainer.add(animated.mesh);
+        this.animatedUpdaters.push(animated.update);
+      } catch (e) {
+        console.warn('Failed to load monster sprite for:', m.name, e);
+      }
 
-      const eyes = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.05), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
-      eyes.position.set(0, 1.37, 0.18);
-      monsterMesh.add(eyes);
-
-      this.monsterGroupMesh.add(monsterMesh);
+      this.monsterGroupMesh.add(monsterContainer);
     });
   }
 
@@ -422,6 +430,11 @@ export class CombatArena {
   }
 
   update(time) {
+    // Update animated sprite billboard loops (monsters / heroes)
+    if (this.animatedUpdaters && this.animatedUpdaters.length > 0) {
+      this.animatedUpdaters.forEach(updater => updater(time));
+    }
+
     // Gentle rotation animation for selected swap hero looking quizzically
     if (this.selectedHeroForSwap !== null && this.interactableHeroes[this.selectedHeroForSwap]) {
       const heroMesh = this.interactableHeroes[this.selectedHeroForSwap];

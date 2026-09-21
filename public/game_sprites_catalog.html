@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>The Bard's Tale VR - Complete Game Sprite Catalog</title>
+  <style>
+    body { background: #0b0f19; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 24px; }
+    h1 { color: #f59e0b; text-align: center; margin-bottom: 8px; font-size: 28px; }
+    p.subtitle { text-align: center; color: #94a3b8; margin-bottom: 24px; }
+    .category-section { margin-bottom: 32px; background: rgba(30, 41, 59, 0.5); padding: 16px; border-radius: 12px; border: 1px solid #334155; }
+    .category-title { color: #38bdf8; font-size: 20px; border-bottom: 1px solid #475569; padding-bottom: 8px; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .card { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 10px; text-align: center; transition: transform 0.2s, border-color 0.2s; }
+    .card:hover { transform: translateY(-4px); border-color: #f59e0b; }
+    .card h4 { margin: 4px 0 2px; color: #f59e0b; font-size: 15px; }
+    .card .id-badge { display: inline-block; background: #0f172a; color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: monospace; margin-bottom: 8px; }
+    .preview-box { width: 128px; height: 128px; margin: 0 auto 8px; overflow: hidden; position: relative; border: 2px solid #334155; border-radius: 6px; background: #000; }
+    .preview-box img { position: absolute; top: 0; left: 0; height: 100%; image-rendering: pixelated; }
+    .card .sheet-link { font-size: 11px; color: #94a3b8; text-decoration: none; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>The Bard's Tale VR — Master Game Asset Catalog</h1>
+  <p class="subtitle">Complete Animated Sprite Sheets from 1985 Interplay Master Assets (01 to 63)</p>
+
+  <div id="catalog"></div>
+
+  <script>
+    const catalogData = [
+      {
+        title: "🛡️ Hero Classes & Archetypes",
+        items: [
+          { num: "01", name: "Warrior / Fighter", role: "Melee Combatant & Weapon Master" },
+          { num: "02", name: "Paladin / Knight", role: "Holy Warrior & Guardian" },
+          { num: "03", name: "Thief / Rogue", role: "Trap Disarmer & Backstabber" },
+          { num: "04", name: "Bard / Minstrel", role: "Magical Instrument Performer" },
+          { num: "05", name: "Hunter / Ranger", role: "Critical Hit Specialist" },
+          { num: "06", name: "Monk / Martial Artist", role: "Bare-Handed Fighter" },
+          { num: "07", name: "Conjurer", role: "Healer & Physical Spellcaster" },
+          { num: "08", name: "Magician / Wizard", role: "Offensive Energy Spellcaster" }
+        ]
+      },
+      {
+        title: "🍺 Tavern, Guild & Town NPCs",
+        items: [
+          { num: "31", name: "Garth the Armorer", role: "Garth's Equipment & Armory Shop" },
+          { num: "32", name: "Roscoe the Mage", role: "Roscoe's Spell Energy Emporium" },
+          { num: "33", name: "Tavern Keeper / Bartender", role: "Tavern Ale & Lore Dispenser" },
+          { num: "34", name: "Guild Master", role: "Adventurers Guild Administrator" },
+          { num: "35", name: "Review Board Elder", role: "Advancement, Levels & Spell Tiers" },
+          { num: "36", name: "High Priest of Light", role: "Temple of Divine Light Healing" },
+          { num: "37", name: "Temple Priestess", role: "Curing Afflictions & Resurrections" }
+        ]
+      },
+      {
+        title: "🗿 Statues, Riddles & Special Encounters",
+        items: [
+          { num: "18", name: "Stone Statue / Guardian", role: "Granite Warrior & Golem Guardian" },
+          { num: "28", name: "Mongo the Barbarian", role: "Special Guardian Encounter" },
+          { num: "29", name: "Tarjan / The Mad God", role: "Temple of Tarjan & Mad God Statue" },
+          { num: "30", name: "Mangar the Dark", role: "Arch-Mage of Skara Brae (Throne Room)" },
+          { num: "38", name: "Magic Mouth / Riddle Face", role: "Wall Speaking Stone Riddle" },
+          { num: "39", name: "Bronze Dragon Statue", role: "Special City Street Guardian" },
+          { num: "40", name: "Iron Golem / Automaton", role: "Harkyn's Castle Guardian" }
+        ]
+      },
+      {
+        title: "⚔️ Classic Skara Brae Monsters & Beasts",
+        items: [
+          { num: "09", name: "Skeleton / Bone Crusher", role: "Undead Melee Enemy" },
+          { num: "10", name: "Kobold / Goblin", role: "Early Dungeon Raider" },
+          { num: "11", name: "Orc / Hobgoblin", role: "Brute Melee Enemy" },
+          { num: "12", name: "Zombie / Ghoul", role: "Undead Rotting Flesh" },
+          { num: "13", name: "Nomad / Barbarian", role: "Desert Warrior" },
+          { num: "14", name: "Spider / Black Widow", role: "Poisonous Arachnid" },
+          { num: "15", name: "Wolf / Werewolf", role: "Ferocious Beast" },
+          { num: "16", name: "Ogre / Ogre Lord", role: "Heavy Crushing Giant" },
+          { num: "17", name: "Wight / Wraith", role: "Life Draining Phantom" },
+          { num: "19", name: "Stone Giant / Titan", role: "Colossal Mountain Behemoth" },
+          { num: "20", name: "Seeker / Eye Spy", role: "Floating Ocular Aberration" },
+          { num: "21", name: "Lurker / Maze Dweller", role: "Creeping Horror" },
+          { num: "22", name: "Doppleganger / Mimic", role: "Shape Shifting Impostor" },
+          { num: "23", name: "Hydra / Jabberwock", role: "Multi-Headed Serpent" },
+          { num: "24", name: "Xorn / Basilisk", role: "Stone Gaze Predator" },
+          { num: "25", name: "Demon / Balrog", role: "Abyssal Fiend" },
+          { num: "26", name: "Vampire / Lich", role: "Undead Lord" },
+          { num: "27", name: "Dragon (Red/Blue/Green)", role: "Ancient Wyrm Boss" }
+        ]
+      }
+    ];
+
+    const catalog = document.getElementById('catalog');
+
+    catalogData.forEach(cat => {
+      const section = document.createElement('div');
+      section.className = 'category-section';
+      section.innerHTML = `<h2 class="category-title">${cat.title}</h2><div class="grid"></div>`;
+      const grid = section.querySelector('.grid');
+
+      cat.items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="preview-box">
+            <img src="/assets/sprites/bt1_${item.num}.png" alt="${item.name}" />
+          </div>
+          <h4>${item.name}</h4>
+          <span class="id-badge">#${item.num} (bt1_${item.num}.png)</span>
+          <div style="font-size:12px; color:#cbd5e1; margin-top:4px;">${item.role}</div>
+        `;
+        grid.appendChild(card);
+      });
+
+      catalog.appendChild(section);
+    });
+  </script>
+</body>
+</html>

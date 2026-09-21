@@ -17,14 +17,17 @@ The codebase is structured into modular XRBlocks components and features a 5-loc
 
 2. **🍺 Skara Brae Tavern (`src/world/FullVRTavern.js` & `src/audio/BardSinger.js`)**:
    - PBR packed sand/dirt floor with bump normal maps, timber ceiling beams, iron wagon-wheel chandelier with volumetric flames (`TorchFlameShader.js`), stone fireplace, and stained glass.
-   - Bard on stage performing *"The Evil in Skara Brae"* with Web Audio API lute synth, vocal formant oscillator, and **3D Floating Speech Lyric Bubbles**.
-   - Seated 3D patrons (*Human Paladin, Elf Wizard, Dwarf Warrior, Hobbit Rogue*) with sloshing ale tankards.
+   - Bard on stage performing *"The Evil in Skara Brae"* with Web Audio API lute synth, vocal formant oscillator, 3D Floating Speech Lyric Bubbles, and authentic 1985 Bard sprite billboard (`bt1_bard.png`).
+   - Authentic 1985 animated sprite patrons (*Paladin, Wizard, Dwarf, Hobbit*) seated at tables (`src/textures/AnimatedSprite.js`).
+   - **Interactive Diegetic Guide Windows (`src/ui/spatial-hud/SpatialInstructionWindow.js`)**: Clicking any patron or the Bard opens a spatial instruction modal explaining game mechanics (Spells/Schools, Combat/Death, Items/Traps, Races/Attributes, Bard Songs).
    - **Dimensional Entrance Transition**: Expanding golden/violet rift ripple dissolve and smooth fade-from-black.
    - **Quest 2 Touch Controller Door Interaction**: Highlight frame + large doorway trigger box; opens upon highlight + **ANY button press** on Quest 2/3 Touch controllers.
 
 3. **🛡️ Garth's Weapons & Wonders (`src/world/garths-shop/GarthsShop.js`)**:
-   - Equipment fitting shop with Garth NPC behind counter and C64 pixel art backdrop.
-   - Physical 3D weapons (*Broadsword, Battleaxe, Shield, Staff, Warhammer, Dagger*) on counter that can be grabbed/tapped to equip onto party hero slots.
+   - Equipment fitting shop with 1985 animated Garth NPC billboard (`bt1_56.png` / `garth.png`) behind counter.
+   - Tapping Garth triggers the Spatial UI dialog with `[🎲 Create New Party]` and `[⚔️ Use Starter Party (6)]`.
+   - Automatic starter gear kit auto-equipped to every newly created hero (`autoEquipCharacter`).
+   - Physical 3D weapons (*Broadsword, Battleaxe, Shield, Staff, Warhammer, Halberd, Dagger*) on counter pedestals with 6DOF VR Controller Grab (Squeeze/Grip) and Desktop Grab (`[G]`/`[E]`/Click) with swing momentum, whoosh audio, haptics, and blade spark trails.
    - Golden Anvil auto-equip station & parchment ledger for inventory inspection.
 
 4. **📖 Palm-Flip 3D Grimoire / Player Book (`src/ui/spatial-hud/PalmBookMenu.js`)**:

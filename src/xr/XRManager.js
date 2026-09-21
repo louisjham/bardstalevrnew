@@ -67,6 +67,11 @@ export class XRManager {
         if (this.onSelect) this.onSelect(i, controller, raycaster);
       });
 
+      controller.addEventListener('selectend', (e) => {
+        const raycaster = this.getControllerRaycaster(controller);
+        if (this.onSelectEnd) this.onSelectEnd(i, controller, raycaster);
+      });
+
       controller.addEventListener('squeezestart', (e) => {
         const raycaster = this.getControllerRaycaster(controller);
         if (this.onSqueezeStart) this.onSqueezeStart(i, controller, raycaster);
@@ -75,6 +80,11 @@ export class XRManager {
       controller.addEventListener('squeeze', (e) => {
         const raycaster = this.getControllerRaycaster(controller);
         if (this.onSqueeze) this.onSqueeze(i, controller, raycaster);
+      });
+
+      controller.addEventListener('squeezeend', (e) => {
+        const raycaster = this.getControllerRaycaster(controller);
+        if (this.onSqueezeEnd) this.onSqueezeEnd(i, controller, raycaster);
       });
 
       // Controller Grip Representation

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { TextureGenerator } from '../textures/TextureGenerator.js';
-import { PatronModels } from './PatronModels.js';
 import { TorchFlameShader } from '../shaders/TorchFlameShader.js';
+import { AnimatedSpriteManager } from '../textures/AnimatedSprite.js';
+import { TAVERN_TUTORIAL_PATRONS } from '../data/TavernTutorialData.js';
 
 export class FullVRTavern {
   constructor(scene, onBardSelected, onDoorSelected) {
@@ -9,7 +10,12 @@ export class FullVRTavern {
     this.onBardSelected = onBardSelected;
     this.onDoorSelected = onDoorSelected;
 
+    this.spriteManager = new AnimatedSpriteManager();
+    this.animatedUpdaters = [];
+    this.portraitImages = new Map();
+
     this.interactableObjects = [];
+    this.patronObjects = [];
     this.torches = [];
     this.flameMeshes = [];
     this.embers = [];
@@ -20,6 +26,15 @@ export class FullVRTavern {
     this.speechBubbleMesh = null;
     this.speechCanvasCtx = null;
     this.speechTexture = null;
+
+    this.activePatronKey = null;
+    this.dialoguePage = 0;
+    this.dialogueCanvas = null;
+    this.dialogueCtx = null;
+    this.dialogueTexture = null;
+    this.dialogueMesh = null;
+    this.dialogueGroup = null;
+    this.dialogueButtons = [];
 
     this.tavernGroup = new THREE.Group();
     this.tavernGroup.name = 'FullVRTavern';
@@ -251,12 +266,36 @@ export class FullVRTavern {
     stageLight.target = stage;
     this.tavernGroup.add(stageLight);
 
-    // The Bard Model with 12-String Lute
-    this.bardMesh = PatronModels.createBard();
-    this.bardMesh.position.set(0, 0.45, -4.8);
-    this.bardMesh.userData = { isBard: true, action: 'openPartyCreation' };
-    this.tavernGroup.add(this.bardMesh);
-    this.interactableObjects.push(this.bardMesh);
+    // 1985 Animated Bard Billboard on Stage with Interactive Hitbox
+    const bardGroup = new THREE.Group();
+    bardGroup.position.set(0, 0.45, -4.8);
+    this.bardMesh = bardGroup;
+    this.bardMesh.userData = { isBard: true, isPatron: true, patronKey: 'bard', name: 'The Scarlet Bard' };
+
+    const bardHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 2.0, 1.0),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    bardHitbox.position.set(0, 0.9, 0);
+    bardHitbox.userData = this.bardMesh.userData;
+    bardGroup.add(bardHitbox);
+
+    (async () => {
+      try {
+        const animated = await this.spriteManager.createAnimatedBillboard('/assets/sprites/bt1_04.png', 4);
+        animated.mesh.position.set(0, 0.9, 0);
+        animated.mesh.scale.set(0.9, 0.9, 0.9);
+        animated.mesh.userData = this.bardMesh.userData;
+        bardGroup.add(animated.mesh);
+        this.animatedUpdaters.push(animated.update);
+      } catch (e) {
+        console.warn('Failed to load bard sprite:', e);
+      }
+    })();
+
+    this.tavernGroup.add(bardGroup);
+    this.interactableObjects.push(bardHitbox, bardGroup);
+    this.patronObjects.push(bardHitbox, bardGroup);
 
     // Stage Banner: "⚔️ SKARA BRAE TAVERN ⚔️"
     const bannerCanvas = document.createElement('canvas');
@@ -274,7 +313,7 @@ export class FullVRTavern {
     ctx.fillText('⚔️ SKARA BRAE TAVERN ⚔️', 320, 62);
     ctx.font = '20px sans-serif';
     ctx.fillStyle = '#fef08a';
-    ctx.fillText('Home of the Bard • Tap Bard for Party Creation', 320, 105);
+    ctx.fillText('Click Bard or Patrons for Game Lore & Guides', 320, 105);
 
     const bannerTex = new THREE.CanvasTexture(bannerCanvas);
     const banner = new THREE.Mesh(
@@ -293,10 +332,10 @@ export class FullVRTavern {
     const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85 });
 
     const patronConfigs = [
-      { createFn: PatronModels.createPaladin, pos: [-2.8, 0, -1.8], rot: Math.PI / 4, label: 'Human Paladin' },
-      { createFn: PatronModels.createWizard, pos: [2.8, 0, -1.8], rot: -Math.PI / 4, label: 'Elf Wizard' },
-      { createFn: PatronModels.createDwarf, pos: [-3.2, 0, 1.8], rot: Math.PI / 6, label: 'Dwarf Warrior' },
-      { createFn: PatronModels.createHobbit, pos: [3.2, 0, 1.8], rot: -Math.PI / 6, label: 'Hobbit Rogue' }
+      { pos: [-2.8, 0, -1.8], rot: Math.PI / 4, label: 'Human Paladin', patronKey: 'paladin', sprite: '/assets/sprites/bt1_02.png' },
+      { pos: [2.8, 0, -1.8], rot: -Math.PI / 4, label: 'Elf Wizard', patronKey: 'wizard', sprite: '/assets/sprites/bt1_08.png' },
+      { pos: [-3.2, 0, 1.8], rot: Math.PI / 6, label: 'Dwarf Warrior', patronKey: 'dwarf', sprite: '/assets/sprites/bt1_01.png' },
+      { pos: [3.2, 0, 1.8], rot: -Math.PI / 6, label: 'Hobbit Rogue', patronKey: 'hobbit', sprite: '/assets/sprites/bt1_03.png' }
     ];
 
     patronConfigs.forEach((cfg, idx) => {
@@ -402,7 +441,7 @@ export class FullVRTavern {
       this.tavernGroup.add(mugGroup);
       this.interactableObjects.push(mugHitBox, mugGroup);
 
-      // 4. Magical Multi-Colored Candle on Table (Paladin: amber, Wizard: blue, Dwarf: amber, Hobbit: violet)
+      // 4. Magical Multi-Colored Candle on Table
       const candleColors = ['fire', 'blue', 'fire', 'violet'];
       const lightColors = [0xffaa33, 0x38bdf8, 0xffaa33, 0xc084fc];
 
@@ -424,12 +463,270 @@ export class FullVRTavern {
       this.tavernGroup.add(cLight);
       this.torches.push({ light: cLight, baseIntensity: 1.4, idx: 20 + idx });
 
-      // 5. Seated Patron Model
-      const patron = cfg.createFn();
-      patron.position.set(cfg.pos[0], 0, cfg.pos[2] + 0.65);
-      patron.rotation.y = cfg.rot;
-      this.tavernGroup.add(patron);
+      // 5. Seated Animated 1985 Sprite Patron + Interactive Hitbox (Replacing low-poly 3D models)
+      const patronGroup = new THREE.Group();
+      patronGroup.position.set(cfg.pos[0], 0, cfg.pos[2] + 0.65);
+      patronGroup.rotation.y = cfg.rot;
+
+      const patronData = {
+        isPatron: true,
+        patronKey: cfg.patronKey,
+        name: cfg.label
+      };
+      patronGroup.userData = patronData;
+
+      // Generous Patron Hitbox for raycast aiming & clicking
+      const patronHitbox = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 1.6, 0.8),
+        new THREE.MeshBasicMaterial({ visible: false })
+      );
+      patronHitbox.position.set(0, 0.75, 0);
+      patronHitbox.userData = patronData;
+      patronGroup.add(patronHitbox);
+
+      (async () => {
+        try {
+          const animated = await this.spriteManager.createAnimatedBillboard(cfg.sprite, 4);
+          animated.mesh.position.set(0, 0.75, 0);
+          animated.mesh.scale.set(0.75, 0.75, 0.75);
+          animated.mesh.userData = patronData;
+          patronGroup.add(animated.mesh);
+          this.animatedUpdaters.push(animated.update);
+        } catch (e) {
+          console.warn('Failed to load patron sprite:', cfg.label, e);
+        }
+      })();
+
+      this.tavernGroup.add(patronGroup);
+      this.interactableObjects.push(patronHitbox, patronGroup);
+      this.patronObjects.push(patronHitbox, patronGroup);
     });
+
+    this.initDialogueWindow();
+  }
+
+  initDialogueWindow() {
+    this.dialogueGroup = new THREE.Group();
+    this.dialogueGroup.position.set(0, 1.35, -2.4);
+    this.dialogueGroup.visible = false;
+
+    this.dialogueCanvas = document.createElement('canvas');
+    this.dialogueCanvas.width = 680;
+    this.dialogueCanvas.height = 380;
+    this.dialogueCtx = this.dialogueCanvas.getContext('2d');
+    this.dialogueTexture = new THREE.CanvasTexture(this.dialogueCanvas);
+
+    const mat = new THREE.MeshBasicMaterial({
+      map: this.dialogueTexture,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+
+    this.dialogueMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 1.18), mat);
+    this.dialogueMesh.userData = { isTavernDialogue: true };
+    this.dialogueGroup.add(this.dialogueMesh);
+    this.interactableObjects.push(this.dialogueMesh);
+
+    this.tavernGroup.add(this.dialogueGroup);
+  }
+
+  openPatronDialogue(patronKey, cameraPos = null) {
+    const data = TAVERN_TUTORIAL_PATRONS[patronKey];
+    if (!data) return;
+
+    this.activePatronKey = patronKey;
+    this.dialoguePage = 0;
+    this.dialogueGroup.visible = true;
+
+    // Position dialogue scroll facing player
+    if (cameraPos) {
+      this.dialogueGroup.lookAt(cameraPos.x, this.dialogueGroup.position.y, cameraPos.z);
+    }
+
+    this.renderPatronDialogue();
+  }
+
+  closePatronDialogue() {
+    this.activePatronKey = null;
+    this.dialoguePage = 0;
+    this.dialogueGroup.visible = false;
+  }
+
+  renderPatronDialogue() {
+    if (!this.activePatronKey || !this.dialogueCtx || !this.dialogueTexture) return;
+
+    const data = TAVERN_TUTORIAL_PATRONS[this.activePatronKey];
+    if (!data) return;
+
+    const ctx = this.dialogueCtx;
+    const cw = 680;
+    const ch = 380;
+    ctx.clearRect(0, 0, cw, ch);
+    this.dialogueButtons = [];
+
+    // 1. Parchment Outer Frame & Dark Wood Trim
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+    ctx.beginPath();
+    ctx.roundRect(8, 8, cw - 16, ch - 16, 18);
+    ctx.fill();
+
+    ctx.strokeStyle = '#f3cf65';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(243, 207, 101, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(14, 14, cw - 28, ch - 28, 14);
+    ctx.stroke();
+
+    // 2. Left Portrait Box (130 x 130)
+    ctx.fillStyle = '#1e1b4b';
+    ctx.fillRect(24, 26, 120, 130);
+    ctx.strokeStyle = '#f3cf65';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(24, 26, 120, 130);
+
+    // Draw Speaker Sprite
+    if (data.sprite) {
+      if (this.portraitImages.has(data.sprite)) {
+        const img = this.portraitImages.get(data.sprite);
+        if (img && img.complete && img.naturalWidth > 0) {
+          const fw = img.naturalWidth / 4;
+          const fh = img.naturalHeight;
+          ctx.drawImage(img, 2, 0, fw - 4, fh, 26, 28, 116, 126);
+        }
+      } else {
+        const img = new Image();
+        img.src = data.sprite;
+        img.onload = () => {
+          this.portraitImages.set(data.sprite, img);
+          this.renderPatronDialogue();
+        };
+        this.portraitImages.set(data.sprite, null);
+      }
+    }
+
+    // 3. Title & Header
+    ctx.fillStyle = '#f3cf65';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(data.name, 160, 48);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(`📜 ${data.title.toUpperCase()}`, 160, 70);
+
+    ctx.strokeStyle = 'rgba(243, 207, 101, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(160, 80);
+    ctx.lineTo(cw - 24, 80);
+    ctx.stroke();
+
+    // 4. Current Page Content
+    const pageIndex = Math.min(this.dialoguePage, data.pages.length - 1);
+    const currentPage = data.pages[pageIndex] || { heading: '', text: '' };
+
+    ctx.fillStyle = '#fef08a';
+    ctx.font = 'bold 17px Georgia, serif';
+    ctx.fillText(currentPage.heading, 160, 108);
+
+    // Word Wrap Description Text
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '14.5px sans-serif';
+    this.wrapText(ctx, currentPage.text, 160, 135, cw - 184, 22);
+
+    // 5. Bottom Navigation Controls & Buttons
+    const totalPages = data.pages.length;
+    const btnY = ch - 54;
+
+    // [ ⬅️ PREV ]
+    if (pageIndex > 0) {
+      this.drawDialogBtn(ctx, 24, btnY, 110, 36, '⬅️ Prev', () => {
+        this.dialoguePage = Math.max(0, this.dialoguePage - 1);
+        this.renderPatronDialogue();
+      }, false);
+    }
+
+    // Page Indicator Badge
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Page ${pageIndex + 1} / ${totalPages}`, cw / 2, btnY + 23);
+
+    // [ NEXT ➡️ ]
+    if (pageIndex < totalPages - 1) {
+      this.drawDialogBtn(ctx, cw - 264, btnY, 110, 36, 'Next ➡️', () => {
+        this.dialoguePage = Math.min(totalPages - 1, this.dialoguePage + 1);
+        this.renderPatronDialogue();
+      }, true);
+    } else if (this.activePatronKey === 'bard') {
+      this.drawDialogBtn(ctx, cw - 280, btnY, 130, 36, '⚔️ Party Build', () => {
+        this.closePatronDialogue();
+        if (this.onBardSelected) this.onBardSelected();
+      }, true);
+    }
+
+    // [ ✖️ CLOSE ]
+    this.drawDialogBtn(ctx, cw - 138, btnY, 114, 36, '✖️ Close', () => {
+      this.closePatronDialogue();
+    }, false);
+
+    this.dialogueTexture.needsUpdate = true;
+  }
+
+  drawDialogBtn(ctx, x, y, w, h, label, action, isPrimary = false) {
+    ctx.fillStyle = isPrimary ? '#f59e0b' : 'rgba(30, 41, 59, 0.9)';
+    ctx.strokeStyle = isPrimary ? '#ffffff' : '#f3cf65';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = isPrimary ? '#0f172a' : '#f3cf65';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + w / 2, y + 23);
+
+    this.dialogueButtons.push({ x, y, w, h, action });
+  }
+
+  wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let currY = y;
+
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      if (testWidth > maxWidth && n > 0) {
+        ctx.fillText(line, x, currY);
+        line = words[n] + ' ';
+        currY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, currY);
+  }
+
+  handleDialogueClick(uv) {
+    if (!uv || !this.dialogueGroup.visible) return false;
+
+    // Convert UV coordinates (0..1) to Canvas pixels (680 x 380)
+    const px = uv.x * 680;
+    const py = (1 - uv.y) * 380;
+
+    for (const btn of this.dialogueButtons) {
+      if (px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+        btn.action();
+        return true;
+      }
+    }
+    return false;
   }
 
   initMountedTrophiesAndWeapons() {
@@ -600,9 +897,9 @@ export class FullVRTavern {
     doorGroup.add(sign);
     this.doorSignMesh = sign;
 
-    // Generous Invisible Doorway Trigger Collider (covers entire doorway zone)
+    // Precise Doorway Trigger Collider matching door frame
     const doorCollider = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 3.8, 1.4),
+      new THREE.BoxGeometry(1.9, 3.2, 0.3),
       new THREE.MeshBasicMaterial({ visible: false })
     );
     doorCollider.position.y = 1.6;
@@ -779,6 +1076,11 @@ export class FullVRTavern {
 
   update(time, deltaTime = 0.016) {
     if (!this.tavernGroup.visible) return;
+
+    // 0. Update Animated Sprite Billboards & Badges
+    if (this.animatedUpdaters && this.animatedUpdaters.length > 0) {
+      this.animatedUpdaters.forEach(updater => updater(time));
+    }
 
     // 1. Update Volumetric Torch, Chandelier & Candle Flame Shaders
     this.flameMeshes.forEach(f => {

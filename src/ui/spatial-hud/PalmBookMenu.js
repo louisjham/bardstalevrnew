@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { getKnownSpells, getSpellsBySchoolAndLevel, SpellSchool } from '../../data/SpellDatabase.js';
 import { BardSongs } from '../../data/BardSongs.js';
 import { getXPForNextLevel } from '../../data/RaceClassData.js';
+import { getSpriteSheetPath } from '../../data/MonsterSpriteManifest.js';
+
 export class PalmBookMenu {
   constructor(scene, camera, onSpellTested, onRestartGame = null) {
     this.scene = scene;
     this.camera = camera;
     this.onSpellTested = onSpellTested;
     this.onRestartGame = onRestartGame;
+    this.portraitImages = new Map();
 
     this.isOpen = false;
     this.bookGroup = new THREE.Group();
@@ -228,8 +231,8 @@ export class PalmBookMenu {
     const dirToHead = headPos.clone().sub(handPos).normalize();
     const distToHead = handPos.distanceTo(headPos);
 
-    // Hand should be within comfortable viewing distance (0.12m to 0.88m from head)
-    if (distToHead < 0.12 || distToHead > 0.88) {
+    // Hand should be within comfortable viewing distance (0.12m to 1.10m from head)
+    if (distToHead < 0.12 || distToHead > 1.10) {
       return { isPalmUp: false, isPalmDown: true, handPos, dirToHead };
     }
 
@@ -344,8 +347,8 @@ export class PalmBookMenu {
 
       // Hand origin position (where the book materializes just above palm)
       const handHoverPos = this.lastHandPos.clone().add(new THREE.Vector3(0, 0.08, 0)).addScaledVector(this.lastDirToHead, 0.04);
-      // Ergonomic reading position in front of face (~0.50m from eyes, lowered 6cm)
-      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.50).add(new THREE.Vector3(0, -0.06, 0));
+      // Ergonomic reading position in front of face (~0.68m from eyes, lowered 8cm)
+      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.68).add(new THREE.Vector3(0, -0.08, 0));
 
       const targetPos = new THREE.Vector3().lerpVectors(handHoverPos, readingPos, t);
       const currentScale = THREE.MathUtils.lerp(0.08, 1.0, t);
@@ -359,8 +362,8 @@ export class PalmBookMenu {
         this.bookGroup.scale.set(1.0, 1.0, 1.0);
       }
     } else if (this.animState === 'OPEN') {
-      // While open and held up, track comfortable reading position
-      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.50).add(new THREE.Vector3(0, -0.06, 0));
+      // While open and held up, track comfortable reading position (0.68m)
+      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.68).add(new THREE.Vector3(0, -0.08, 0));
       this.bookGroup.position.lerp(readingPos, 0.22);
       this.bookGroup.scale.set(1.0, 1.0, 1.0);
       this.bookGroup.lookAt(headPos);
@@ -369,7 +372,7 @@ export class PalmBookMenu {
       const t = Math.pow(this.animProgress, 2); // Ease-in quad
 
       const handHoverPos = this.lastHandPos.clone().add(new THREE.Vector3(0, 0.06, 0));
-      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.50).add(new THREE.Vector3(0, -0.06, 0));
+      const readingPos = headPos.clone().addScaledVector(this.lastDirToHead, -0.68).add(new THREE.Vector3(0, -0.08, 0));
 
       const targetPos = new THREE.Vector3().lerpVectors(handHoverPos, readingPos, t);
       const currentScale = THREE.MathUtils.lerp(0.02, 1.0, t);
@@ -443,14 +446,15 @@ export class PalmBookMenu {
   }
 
   positionInFrontOfCamera() {
-    // 0.50m in front of camera, slightly lowered, facing camera
+    // 0.68m in front of camera, slightly lowered, facing camera
     const headPos = new THREE.Vector3();
     const headQuat = new THREE.Quaternion();
     this.camera.getWorldPosition(headPos);
     this.camera.getWorldQuaternion(headQuat);
 
-    const forward = new THREE.Vector3(0, -0.06, -0.50).applyQuaternion(headQuat);
-    this.bookGroup.position.copy(headPos).add(forward);
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat);
+    const targetPos = headPos.clone().addScaledVector(fwd, 0.68).add(new THREE.Vector3(0, -0.08, 0));
+    this.bookGroup.position.copy(targetPos);
     this.bookGroup.scale.set(1.0, 1.0, 1.0);
     this.bookGroup.lookAt(headPos);
   }
@@ -644,23 +648,37 @@ export class PalmBookMenu {
     ctx.fillStyle = status === 'DEAD' ? '#090d16' : '#1e1b4b';
     ctx.fillRect(x, y, w, h);
 
-    const borderCol = status === 'DEAD' ? '#ef4444' :
-                      status === 'POIS' ? '#22c55e' :
-                      status === 'PARA' ? '#facc15' :
-                      status === 'POSS' ? '#e11d48' :
-                      status === 'NUTS' ? '#a855f7' :
-                      status === 'OLD' ? '#f97316' :
-                      status === 'STON' ? '#94a3b8' :
-                      status === 'DAMAGED' ? '#ef4444' : '#f3cf65';
-    ctx.strokeStyle = borderCol;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y, w, h);
+    // Draw Authentic 1985 Sprite Portrait
+    const spritePath = getSpriteSheetPath(hero.class || hero.race || 'warrior');
+    let imageDrawn = false;
+    if (spritePath) {
+      if (this.portraitImages.has(spritePath)) {
+        const cachedImg = this.portraitImages.get(spritePath);
+        if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
+          const frameW = cachedImg.naturalWidth / 4;
+          const frameH = cachedImg.naturalHeight;
+          ctx.drawImage(cachedImg, 2, 0, frameW - 4, frameH, x + 2, y + 2, w - 4, h - 4);
+          imageDrawn = true;
+        }
+      } else {
+        // Start async pre-load
+        const img = new Image();
+        img.src = spritePath;
+        img.onload = () => {
+          this.portraitImages.set(spritePath, img);
+          this.renderBook();
+        };
+        this.portraitImages.set(spritePath, null);
+      }
+    }
 
-    // Basic Face Silhouettes
-    ctx.fillStyle = status === 'STON' ? '#64748b' : status === 'DEAD' ? '#475569' : '#fde047';
-    ctx.beginPath();
-    ctx.arc(x + w / 2, y + h * 0.4, w * 0.28, 0, Math.PI * 2);
-    ctx.fill();
+    // Fallback silhouette if image not yet loaded
+    if (!imageDrawn) {
+      ctx.fillStyle = status === 'STON' ? '#64748b' : status === 'DEAD' ? '#475569' : '#fde047';
+      ctx.beginPath();
+      ctx.arc(x + w / 2, y + h * 0.4, w * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Dynamic State Overlay Effects
     if (status === 'DEAD') {
@@ -761,23 +779,48 @@ export class PalmBookMenu {
     ctx.fillText('📍 LOCATIONS OF INTEREST', 320, 65);
 
     const locations = [
-      { name: 'Scarlet Bard Tavern', color: '#f59e0b', desc: 'Title Screen & Songs' },
-      { name: "Garth's Weapons & Wonders", color: '#10b981', desc: 'Party Gear & Fitting' },
-      { name: 'Adventurers Guild', color: '#38bdf8', desc: 'Level Up & Roster' },
-      { name: "Mangar's Catacombs", color: '#ef4444', desc: 'Dungeon Entrance' }
+      { name: 'Scarlet Bard Tavern', sprite: '/assets/sprites/bt1_33.png', desc: 'Ale, Lore & Songs' },
+      { name: "Garth's Armory Shoppe", sprite: '/assets/sprites/bt1_31.png', desc: 'Party Gear & Fitting' },
+      { name: 'Adventurers Guild', sprite: '/assets/sprites/bt1_34.png', desc: 'Roster & Quests' },
+      { name: 'Review Board', sprite: '/assets/sprites/bt1_35.png', desc: 'Levels & Spell Tiers' },
+      { name: "Roscoe's Emporium", sprite: '/assets/sprites/bt1_32.png', desc: 'Spell Point Recharging' },
+      { name: 'Temple of Divine Light', sprite: '/assets/sprites/bt1_36.png', desc: 'Healing & Restoration' }
     ];
 
     locations.forEach((loc, idx) => {
-      ctx.fillStyle = loc.color;
-      ctx.fillRect(320, 95 + idx * 60, 16, 16);
+      const yPos = 85 + idx * 52;
+
+      // Draw sprite thumbnail
+      if (loc.sprite) {
+        if (this.portraitImages.has(loc.sprite)) {
+          const img = this.portraitImages.get(loc.sprite);
+          if (img && img.complete && img.naturalWidth > 0) {
+            const fw = img.naturalWidth / 4;
+            const fh = img.naturalHeight;
+            ctx.drawImage(img, 2, 0, fw - 4, fh, 320, yPos, 38, 38);
+          }
+        } else {
+          const img = new Image();
+          img.src = loc.sprite;
+          img.onload = () => {
+            this.portraitImages.set(loc.sprite, img);
+            this.renderBook();
+          };
+          this.portraitImages.set(loc.sprite, null);
+        }
+      }
+
+      ctx.strokeStyle = '#f3cf65';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(320, yPos, 38, 38);
 
       ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 15px Georgia, serif';
-      ctx.fillText(loc.name, 346, 108 + idx * 60);
+      ctx.font = 'bold 14px Georgia, serif';
+      ctx.fillText(loc.name, 368, yPos + 18);
 
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '13px sans-serif';
-      ctx.fillText(loc.desc, 346, 128 + idx * 60);
+      ctx.font = '12px sans-serif';
+      ctx.fillText(loc.desc, 368, yPos + 34);
     });
   }
 

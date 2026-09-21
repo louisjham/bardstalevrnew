@@ -18,16 +18,32 @@ Welcome! This document outlines completed milestones and provides a clear founda
 
 ### 2. 🍺 Skara Brae Tavern (`src/world/FullVRTavern.js`)
 - [x] **Atmospheric Medieval Tavern**: Packed sand/dirt floor with bump normal maps, timber ceiling beams, iron wagon-wheel chandelier with volumetric flames (`TorchFlameShader.js`), stone fireplace, and stained glass.
-- [x] **Live Stage Bard Performer (`src/audio/BardSinger.js` & `BardSynth.js`)**: Real-time Web Audio API procedural lute synthesizer + vocal formant oscillator performing *"The Evil in Skara Brae"* with 3D floating lyric speech bubbles.
-- [x] **3D Seated Patrons**: Human Paladin, Elf Wizard, Dwarf Warrior, and Hobbit Rogue seated around oak slab tables with interactive sloshing ale tankards.
+- [x] **Live Stage Bard Performer (`src/audio/BardSinger.js` & `BardSynth.js`)**: Real-time Web Audio API procedural lute synthesizer + vocal formant oscillator performing *"The Evil in Skara Brae"* with 3D floating lyric speech bubbles and authentic 1985 Bard sprite billboard (`bt1_bard.png`).
+- [x] **Authentic 1985 Sprite Patrons (`src/textures/AnimatedSprite.js` & `src/data/TavernTutorialData.js`)**:
+  - Replaced 3D low-poly patrons with authentic 1985 animated sprite billboards (*Paladin, Wizard, Dwarf, Hobbit, Bard*).
+  - **Interactive Tutorial Guides**: Clicking/tapping any patron or the Bard opens a diegetic Spatial UI window (`SpatialInstructionWindow.js`) with comprehensive CRPG instructions:
+    - *Wizard*: Magic user classes (*Conjurer, Magician, Sorcerer, Wizard*), spell tiers, and daylight SP regeneration.
+    - *Paladin / Knight*: Combat mechanics, armor class, party formation, party death, and temple revival.
+    - *Dwarf*: Weapon & armor equipment, identifying traps, disarming chests, and item durability.
+    - *Hobbit*: Character races (*Human, Elf, Dwarf, Hobbit, Half-Elf, Half-Orc, Gnome*), base attributes, and level-up stat gains.
+    - *Bard*: Bard songs, party combat buffs, song durations, and replenishing voice at the tavern.
 - [x] **Dimensional Entrance Transition**: Concentric golden/violet dimensional rift ripple expanding and dissolving upon entry.
 - [x] **Quest 2 Touch Controller Door Interaction**: Highlight frame + large doorway trigger box; opens upon highlight + **ANY button press** on Meta Quest 2/3 Touch controllers.
 
 ### 3. 🛡️ Garth's Weapons & Wonders (`src/world/garths-shop/GarthsShop.js`)
-- [x] **Equipment Shoppe Environment**: Stone walls, volumetric wall torches, Garth shopkeeper NPC, crossed display blades, and shop banner.
-- [x] **3D Modeled Counter Weapons**: Physical Broadswords, Battleaxes, Iron Shields, Oak Staves, Warhammers, and Daggers that can be grabbed or tapped to equip directly to party hero slots.
-- [x] **Auto-Equip Station**: Golden anvil station to instantly kit out the entire 6-hero party with mid-grade arms, armor, and exploration torches.
-- [x] **Ledger & Character Inspection**: Interactive parchment ledger to inspect party character sheets and equipment.
+- [x] **Equipment Shoppe Environment**: Stone walls, volumetric wall torches, crossed display blades, and shop banner.
+- [x] **Authentic 1985 Garth Sprite Billboard**: 4-frame animated sprite billboard of Garth (`bt1_56.png` / `garth.png`) behind the weapons counter.
+- [x] **Garth Roster & Party Dialog**:
+  - Tapping Garth opens an interactive Spatial UI modal with:
+    - `[🎲 Create New Party]` — Launches the 6-hero custom party creation UI.
+    - `[⚔️ Use Starter Party (6)]` — Instantly activates the canonical starter party (*Paladin, Warrior, Hunter, Rogue, Conjurer, Magician*).
+- [x] **Automatic Starter Weapons & Armor**: Every newly created hero (standard or custom) is automatically equipped with authentic class-appropriate weapons, armor, helmets, shields, and instruments (`autoEquipCharacter`).
+- [x] **Physical 3D Weapon Grabbing & Physics Swinging**:
+  - 3D weapons (*Broadsword, Battleaxe, Oak Staff, Iron Warhammer, Halberd, Silver Dagger, Shield*) rest on pedestals on the counter.
+  - **Grabbing**: Hold Grip/Squeeze in VR or click/press `[G]`/`[E]` on Desktop to pick up and hold in hand.
+  - **Swinging Physics**: Rapid hand movement ($> 1.6\text{ m/s}$ in VR) or `[Left Click]`/`[Space]` on Desktop plays procedural whoosh sound effects (`playSwordSwing()`), haptic vibration, and spawns blade-tip spark trails.
+  - **Releasing**: Press `[G]`/`[E]` or Right-Click to return the weapon to its counter pedestal.
+- [x] **Auto-Equip Station & Ledger**: Golden anvil auto-equip station & parchment ledger for inspecting equipment and character stats.
 
 ### 4. 📖 Palm-Flip 3D Grimoire / Player Book (`src/ui/spatial-hud/PalmBookMenu.js`)
 - [x] **Natural Palm Gesture Tracking**: Turning hand over from palm-down to palm-up summons the glowing Grimoire with a summoning animation; dropping the pose dispels it.
@@ -69,21 +85,19 @@ Welcome! This document outlines completed milestones and provides a clear founda
 
 ### 📌 High-Priority Tasks
 1. **🏰 Skara Brae City & Dungeon Expansion**:
-   - Add dungeon stairs leading down into *The Wine Cellar*, *The Catacombs*, and *Harkyn's Castle*.
-   - Implement dungeon traps (spinner tiles, darkness zones, pit traps) with Palm Grimoire automap cues.
+   - Add dungeon entrance stairs in Skara Brae leading down into *The Wine Cellar* (under the Tavern), *The Catacombs* (Mad God temple), and *Harkyn's Castle*.
+   - Implement dungeon traps (spinner tiles, darkness zones, pit traps, anti-magic zones) with Palm Grimoire automap cues.
 
 2. **✨ 3D Spatial Rune Drawing Gestures**:
-   - Add 3D spell casting gestures for VR controllers (drawing runes in VR space to trigger specific 4-letter spell codes).
+   - Add 3D spell casting gestures for VR controllers (drawing runes in VR space to trigger specific 4-letter spell codes like `MAFL`, `ARFI`, `VOBP`).
 
-3. **🎵 Bard Song Aura VFX**:
-   - Render 3D glowing musical note particle fields surrounding party members during active song playback.
+3. **🎵 Bard Song Aura VFX & Spatial Audio**:
+   - Render 3D glowing musical note particle fields and color aura rings surrounding party members during active song playback.
+   - Add tavern ambient crowd murmurs and crackling fireplace spatial audio.
 
 4. **💰 Garth's Shop Purchasing & Gold Economy**:
    - Connect gold piece deductions when purchasing/equipping weapons off Garth's counter.
-   - Display weapon stat tooltip cards (*Damage, Armor Class bonus, Required Class*) when hovering/grabbing items.
-
-5. **🔊 Audio & Voice Polish**:
-   - Add ambient tavern chatter, crackling fireplace positional audio, and footsteps.
+   - Display floating 3D weapon stat tooltip cards (*Damage, Armor Class bonus, Required Class, Value in GP*) when hovering/grabbing items.
 
 ---
 
@@ -91,3 +105,4 @@ Welcome! This document outlines completed milestones and provides a clear founda
 - **Automated Unit Tests**: `node --test src/**/*.test.js` (30/30 Passing).
 - **Production Build**: `npm run build` (Verified 0 errors).
 - **Local Dev Server**: `npm run dev` (HTTPS port 5173).
+

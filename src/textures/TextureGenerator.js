@@ -1381,6 +1381,643 @@ export class TextureGenerator {
     const texture = new THREE.CanvasTexture(canvas);
     return texture;
   }
+
+  // ─── SKARA BRAE STATUES & SPECIAL LANDMARKS BILLBOARD TEXTURES ─────────
+
+  /**
+   * S1: Samurai Statue Billboard Texture (27, 6)
+   */
+  static createSamuraiStatueTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Transparent background
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Pedestal Base
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(128, 420, 256, 80);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(128, 420, 256, 80);
+
+    // Runic Inscription on Base
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚡ SAMURAI STATUE (S1) ⚡', 256, 465);
+
+    // Stone Samurai Silhouette & Armor Plates
+    ctx.fillStyle = '#475569';
+    // Kabuto Helmet Crest
+    ctx.beginPath();
+    ctx.moveTo(256, 60);
+    ctx.lineTo(200, 110);
+    ctx.lineTo(256, 90);
+    ctx.lineTo(312, 110);
+    ctx.closePath();
+    ctx.fill();
+
+    // Helmet Dome & Face Guard
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(256, 120, 45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(236, 120, 40, 12); // Visor slit
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(240, 122, 10, 8); // Glowing eye
+    ctx.fillRect(262, 122, 10, 8); // Glowing eye
+
+    // Shoulder Sode (Armor)
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(160, 160, 60, 90);
+    ctx.fillRect(292, 160, 60, 90);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(160, 160, 60, 90);
+    ctx.strokeRect(292, 160, 60, 90);
+
+    // Torso Do (Cuirass)
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(210, 160, 92, 140);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
+    for (let y = 175; y < 290; y += 20) {
+      ctx.beginPath(); ctx.moveTo(215, y); ctx.lineTo(297, y); ctx.stroke();
+    }
+
+    // Two-Handed Katana Blade held vertically
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(250, 40, 12, 360);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(250, 40, 12, 360);
+
+    // Katana Tsuba (Guard) & Hilt
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(236, 210, 40, 10);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(250, 220, 12, 50);
+
+    // Legs & Greaves
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(215, 300, 36, 120);
+    ctx.fillRect(261, 300, 36, 120);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    return texture;
+  }
+
+  /**
+   * S2: Stone Giant Statue Billboard Texture (4, 26), (22, 3), (21, 2)
+   */
+  static createStoneGiantStatueTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Plinth
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(110, 430, 292, 70);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(110, 430, 292, 70);
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🗿 STONE GIANT STATUE (S2) 🗿', 256, 475);
+
+    // Massive Stone Giant Body
+    ctx.fillStyle = '#64748b';
+    // Head & Brow
+    ctx.beginPath();
+    ctx.arc(256, 100, 50, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(226, 100, 60, 20); // Deep eye ridge
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(235, 104, 12, 8);
+    ctx.fillRect(265, 104, 12, 8);
+
+    // Massive Shoulders & Torso
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.moveTo(130, 150);
+    ctx.lineTo(382, 150);
+    ctx.lineTo(340, 310);
+    ctx.lineTo(172, 310);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stone Boulder / Granite Club on Right Shoulder
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.arc(360, 120, 60, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Arms
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(120, 150, 50, 160);
+    ctx.fillRect(342, 150, 50, 160);
+
+    // Heavy Legs
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(180, 310, 65, 120);
+    ctx.fillRect(267, 310, 65, 120);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    return texture;
+  }
+
+  /**
+   * S3: Stone Golem Statue Billboard Texture (6, 26)
+   */
+  static createStoneGolemStatueTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Plinth
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(120, 430, 272, 70);
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(120, 430, 272, 70);
+
+    ctx.fillStyle = '#c084fc';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🔮 STONE GOLEM (S3) 🔮', 256, 475);
+
+    // Golem Stone Blocks & Runes
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(210, 60, 92, 80); // Head block
+    ctx.fillStyle = '#a855f7';
+    ctx.fillRect(225, 90, 18, 14); // Left eye
+    ctx.fillRect(269, 90, 18, 14); // Right eye
+
+    // Torso Block
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(150, 140, 212, 170);
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 4;
+    // Glowing Arcane Rune on Chest
+    ctx.beginPath();
+    ctx.moveTo(256, 170); ctx.lineTo(220, 240); ctx.lineTo(292, 240); ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(256, 215, 20, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Giant Fist Arms
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(90, 150, 55, 170);
+    ctx.fillRect(367, 150, 55, 170);
+
+    // Legs
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(170, 310, 70, 120);
+    ctx.fillRect(272, 310, 70, 120);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    return texture;
+  }
+
+  /**
+   * S4: Grey Dragon Statue Billboard Texture (6, 24)
+   */
+  static createGreyDragonStatueTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Plinth
+    ctx.fillStyle = '#1c1917';
+    ctx.fillRect(100, 430, 312, 70);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(100, 430, 312, 70);
+
+    ctx.fillStyle = '#f87171';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🐉 GREY DRAGON (S4) 🐉', 256, 475);
+
+    // Dragon Wings Outstretched
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.moveTo(256, 180);
+    ctx.lineTo(60, 80);
+    ctx.lineTo(110, 220);
+    ctx.lineTo(256, 250);
+    ctx.lineTo(402, 220);
+    ctx.lineTo(452, 80);
+    ctx.closePath();
+    ctx.fill();
+
+    // Wing Struts
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(256, 180); ctx.lineTo(60, 80);
+    ctx.moveTo(256, 180); ctx.lineTo(452, 80);
+    ctx.stroke();
+
+    // Dragon Head & Horns
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(256, 60); // Snout
+    ctx.lineTo(220, 120);
+    ctx.lineTo(210, 80); // Horn
+    ctx.lineTo(240, 140);
+    ctx.lineTo(272, 140);
+    ctx.lineTo(302, 80); // Horn
+    ctx.lineTo(292, 120);
+    ctx.closePath();
+    ctx.fill();
+
+    // Glowing Red Dragon Eyes
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(235, 100, 14, 10);
+    ctx.fillRect(263, 100, 14, 10);
+
+    // Muscular Coiled Body & Tail
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(256, 270, 70, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spiked Claws & Base Tail
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(190, 340, 50, 90);
+    ctx.fillRect(272, 340, 50, 90);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    return texture;
+  }
+
+  /**
+   * S5: Ogre Lord Statue Billboard Texture (3, 14), (3, 6), (6, 6)
+   */
+  static createOgreLordStatueTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Plinth
+    ctx.fillStyle = '#1e1b4b';
+    ctx.fillRect(110, 430, 292, 70);
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(110, 430, 292, 70);
+
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('👹 OGRE LORD (S5) 👹', 256, 475);
+
+    // Massive Brutish Head with Tusks
+    ctx.fillStyle = '#3f3f46';
+    ctx.beginPath();
+    ctx.arc(256, 110, 55, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tusks
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.moveTo(225, 140); ctx.lineTo(215, 110); ctx.lineTo(235, 130); ctx.closePath();
+    ctx.moveTo(287, 140); ctx.lineTo(297, 110); ctx.lineTo(277, 130); ctx.closePath();
+    ctx.fill();
+
+    // Glowing Amber Eyes
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(235, 100, 14, 10);
+    ctx.fillRect(263, 100, 14, 10);
+
+    // Spiked Club held high
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(360, 40, 24, 260);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(348, 40, 48, 80); // Spiked head
+
+    // Broad Torso & Loincloth
+    ctx.fillStyle = '#27272a';
+    ctx.fillRect(160, 160, 192, 150);
+    ctx.fillStyle = '#713f12';
+    ctx.fillRect(180, 290, 152, 40);
+
+    // Huge Legs
+    ctx.fillStyle = '#3f3f46';
+    ctx.fillRect(175, 330, 65, 100);
+    ctx.fillRect(272, 330, 65, 100);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    return texture;
+  }
+
+  /**
+   * S6: Guardian Golem Statue Billboard Texture (6, 22)
+   */
+  static createGuardianGolemStatueTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Plinth
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(120, 430, 272, 70);
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(120, 430, 272, 70);
+
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🛡️ GUARDIAN GOLEM (S6) 🛡️', 256, 475);
+
+    // Shield-bearing Stone Golem
+    ctx.fillStyle = '#52525b';
+    ctx.fillRect(210, 70, 92, 70);
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(230, 95, 16, 12);
+    ctx.fillRect(266, 95, 16, 12);
+
+    // Great Tower Shield in Front
+    ctx.fillStyle = '#27272a';
+    ctx.beginPath();
+    ctx.roundRect(170, 140, 172, 220, 16);
+    ctx.fill();
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Radiant Sun Emblem on Shield
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(256, 250, 40, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Legs
+    ctx.fillStyle = '#3f3f46';
+    ctx.fillRect(190, 360, 55, 70);
+    ctx.fillRect(267, 360, 55, 70);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    return texture;
+  }
+
+  /**
+   * Gran Plaz Central Monument / Fountain Texture (15, 15)
+   */
+  static createGranPlazMonumentTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Marble Base Tier 1
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(60, 380, 392, 100);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(60, 380, 392, 100);
+
+    // Tier 2
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(120, 310, 272, 70);
+    ctx.strokeRect(120, 310, 272, 70);
+
+    // Obelisk Spire
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.moveTo(256, 30);
+    ctx.lineTo(210, 310);
+    ctx.lineTo(302, 310);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Gold Plaque: "GRAN PLAZ OF SKARA BRAE"
+    ctx.fillStyle = '#1e1b4b';
+    ctx.fillRect(90, 400, 332, 60);
+    ctx.strokeStyle = '#f3cf65';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(90, 400, 332, 60);
+
+    ctx.fillStyle = '#fef08a';
+    ctx.font = 'bold 20px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⛲ GRAN PLAZ ⛲', 256, 428);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '14px monospace';
+    ctx.fillText('Heart of Skara Brae', 256, 450);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  }
+
+  /**
+   * City Gate Frozen Portcullis Texture (0, 15)
+   */
+  static createCityGatePortcullisTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Stone Archway
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Inner arch
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(256, 260, 190, Math.PI, 0);
+    ctx.lineTo(446, 512);
+    ctx.lineTo(66, 512);
+    ctx.closePath();
+    ctx.fill();
+
+    // Heavy Iron Portcullis Grate
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 12;
+    for (let x = 110; x <= 400; x += 36) {
+      ctx.beginPath(); ctx.moveTo(x, 100); ctx.lineTo(x, 480); ctx.stroke();
+    }
+    for (let y = 140; y <= 460; y += 40) {
+      ctx.beginPath(); ctx.moveTo(80, y); ctx.lineTo(432, y); ctx.stroke();
+    }
+
+    // Snow Drifts Accumulation at Base
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.moveTo(50, 512);
+    ctx.bezierCurveTo(150, 420, 250, 460, 350, 410);
+    ctx.bezierCurveTo(400, 420, 480, 460, 512, 512);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sign on Gate
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(100, 40, 312, 60);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(100, 40, 312, 60);
+    ctx.fillStyle = '#e0f2fe';
+    ctx.font = 'bold 20px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('❄️ CITY GATES (BLOCKED) ❄️', 256, 76);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  }
+
+  /**
+   * Sewers Iron Floor Grate Texture (1, 1)
+   */
+  static createSewerGrateTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Dark water & slime pit below
+    ctx.fillStyle = '#052e16';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Stone Rim
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 40;
+    ctx.strokeRect(20, 20, 472, 472);
+
+    // Heavy Iron Bars
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 14;
+    for (let x = 60; x <= 450; x += 38) {
+      ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, 472); ctx.stroke();
+    }
+    for (let y = 60; y <= 450; y += 42) {
+      ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(472, y); ctx.stroke();
+    }
+
+    // Warning Sign
+    ctx.fillStyle = '#14532d';
+    ctx.fillRect(110, 220, 292, 70);
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(110, 220, 292, 70);
+    ctx.fillStyle = '#bbf7d0';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('☣️ SEWERS ENTRANCE ☣️', 256, 262);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  }
+
+  /**
+   * Teleport Pad Swirling Portal Texture (25, 2) & (25, 7)
+   */
+  static createTeleportPadTexture() {
+    if (typeof document === 'undefined') return new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Arcane Stone Floor
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Outer Glowing Runic Circle
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(256, 256, 210, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner Magenta Arcane Circle
+    ctx.strokeStyle = '#d946ef';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(256, 256, 150, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Swirling Portal Core
+    const grad = ctx.createRadialGradient(256, 256, 10, 256, 256, 130);
+    grad.addColorStop(0, '#fdf4ff');
+    grad.addColorStop(0.4, '#c084fc');
+    grad.addColorStop(0.8, '#38bdf8');
+    grad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(256, 256, 130, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mystic Sigils
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('✨ TELEPORTER PAD ✨', 256, 264);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  }
 }
+
 
 

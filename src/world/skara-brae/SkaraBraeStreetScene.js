@@ -11,6 +11,8 @@ import {
   TerrainType
 } from '../../data/SkaraBraeMapData.js';
 import { TextureGenerator } from '../../textures/TextureGenerator.js';
+import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
+import { getLocationSpritePath } from '../../data/GameLocationSpriteManifest.js';
 
 /**
  * SkaraBraeStreetScene - Authentic 3D City of Skara Brae
@@ -33,6 +35,9 @@ export class SkaraBraeStreetScene {
     this.onEnterTemple = onEnterTemple;
     this.onEnterRoscoe = onEnterRoscoe;
 
+    this.spriteManager = new AnimatedSpriteManager();
+    this.animatedUpdaters = [];
+
     this.sceneGroup = new THREE.Group();
     this.sceneGroup.name = 'SkaraBraeStreetScene';
     this.sceneGroup.visible = false;
@@ -40,6 +45,7 @@ export class SkaraBraeStreetScene {
     this.interactableObjects = [];
     this.torches = [];
     this.disposables = [];
+    this.billboardObjects = [];
 
     this.dayNightMode = 'day'; // 'day' | 'dusk' | 'night' | 'dawn'
     this.facadeMaterialCache = new Map();
@@ -58,6 +64,7 @@ export class SkaraBraeStreetScene {
     this.initTempleStorefront();
     this.initTarjanStorefront();
     this.initRoscoeStorefront();
+    this.initStatuesAndMonuments();
     this.initDebugGrid();
 
     if (this.scene) {
@@ -897,6 +904,360 @@ export class SkaraBraeStreetScene {
     this.roscoeDoorGroup = doorGroup;
   }
 
+  /**
+   * 3D Guardian Statues (S1–S6), Grand Plaza Monument, City Gates, Dungeons, and Teleporters
+   */
+  initStatuesAndMonuments() {
+    const S = CELL_SIZE_METERS;
+
+    const plinthMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8, metalness: 0.2 });
+    const plinthGeo = new THREE.CylinderGeometry(0.9, 1.1, 0.45, 16);
+    this.disposables.push(plinthMat, plinthGeo);
+
+    // ─── 1. STATUES CONFIGURATION ───────────────────────────────────────
+    const statueConfigs = [
+      // S1: Samurai Statue
+      {
+        id: 'S1',
+        coords: [{ x: 27, y: 6 }],
+        name: 'Samurai Statue',
+        spriteKey: 'statue_s1_samurai',
+        glowColor: 0x38bdf8,
+        description: 'A finely chiseled Samurai statue stands in quiet meditation, its hand resting upon the hilt of a razor-sharp katana.'
+      },
+      // S2: Stone Giant Statues
+      {
+        id: 'S2',
+        coords: [{ x: 4, y: 26 }, { x: 22, y: 3 }, { x: 21, y: 2 }],
+        name: 'Stone Giant Statue',
+        spriteKey: 'statue_s2_stone_giant',
+        glowColor: 0xf59e0b,
+        description: 'A colossal Stone Giant statue carved from Skara Brae granite looms overhead, brandishing a massive stone boulder.'
+      },
+      // S3: Stone Golem Statue
+      {
+        id: 'S3',
+        coords: [{ x: 6, y: 26 }],
+        name: 'Stone Golem Statue',
+        spriteKey: 'statue_s3_stone_golem',
+        glowColor: 0xa855f7,
+        description: 'A massive Stone Golem statue covered in ancient protective glyphs stands motionless.'
+      },
+      // S4: Grey Dragon Statue
+      {
+        id: 'S4',
+        coords: [{ x: 6, y: 24 }],
+        name: 'Grey Dragon Statue',
+        spriteKey: 'statue_s4_grey_dragon',
+        glowColor: 0xef4444,
+        description: 'An ancient Grey Dragon sculpted in jagged obsidian guards the road toward Harkyn\'s Castle. Its stone eyes seem to smolder.'
+      },
+      // S5: Ogre Lord Statues
+      {
+        id: 'S5',
+        coords: [{ x: 3, y: 14 }, { x: 3, y: 6 }, { x: 6, y: 6 }],
+        name: 'Ogre Lord Statue',
+        spriteKey: 'statue_s5_ogre_lord',
+        glowColor: 0x10b981,
+        description: 'A brutish Ogre Lord statue with cruel tusks and a spiked mace scowls down at passing adventurers.'
+      },
+      // S6: Guardian Golem Statue
+      {
+        id: 'S6',
+        coords: [{ x: 6, y: 22 }],
+        name: 'Guardian Golem Statue',
+        spriteKey: 'statue_s6_guardian_golem',
+        glowColor: 0xeab308,
+        description: 'A stalwart Guardian Golem statue holding a radiant solar tower shield stands vigilant against evil.'
+      }
+    ];
+
+    statueConfigs.forEach(cfg => {
+      cfg.coords.forEach(async pos => {
+        const { worldX, worldZ } = sourceToWorld(pos.x, pos.y);
+
+        const statueGroup = new THREE.Group();
+        statueGroup.position.set(worldX, 0, worldZ);
+
+        // Stone Base Plinth
+        const plinth = new THREE.Mesh(plinthGeo, plinthMat);
+        plinth.position.y = 0.225;
+        statueGroup.add(plinth);
+
+        // Animated 1985 Sprite Billboard
+        try {
+          const spriteSrc = getLocationSpritePath(cfg.spriteKey);
+          const animated = await this.spriteManager.createAnimatedBillboard(spriteSrc, 3);
+          animated.mesh.position.y = 1.7;
+          animated.mesh.scale.set(1.3, 1.4, 1.3);
+          statueGroup.add(animated.mesh);
+          this.billboardObjects.push(animated.mesh);
+          this.animatedUpdaters.push(animated.update);
+        } catch (e) {
+          console.warn('Failed to load statue sprite for:', cfg.name, e);
+        }
+
+        // Arcane Spotlight
+        const light = new THREE.PointLight(cfg.glowColor, 2.0, 5.0);
+        light.position.set(0, 1.8, 0);
+        statueGroup.add(light);
+        this.torches.push({ light, baseIntensity: 2.0 });
+
+        // Invisible Interaction Hitbox
+        const hitBox = new THREE.Mesh(
+          new THREE.BoxGeometry(2.0, 3.2, 2.0),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        hitBox.position.y = 1.6;
+        statueGroup.add(hitBox);
+        this.disposables.push(hitBox.geometry, hitBox.material);
+
+        const statueData = {
+          isStatue: true,
+          statueId: cfg.id,
+          name: cfg.name,
+          coords: pos,
+          description: cfg.description
+        };
+        statueGroup.userData = statueData;
+        hitBox.userData = statueData;
+
+        this.sceneGroup.add(statueGroup);
+        this.interactableObjects.push(hitBox, statueGroup);
+      });
+    });
+
+    // ─── 2. GRAN PLAZ CENTRAL MONUMENT (15, 15) ─────────────────────────
+    {
+      const { worldX, worldZ } = sourceToWorld(15, 15);
+      const plazaGroup = new THREE.Group();
+      plazaGroup.position.set(worldX, 0, worldZ);
+
+      // Monument Plinth
+      const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 0.6, 16), baseMat);
+      base.position.y = 0.3;
+      plazaGroup.add(base);
+
+      // Obelisk
+      const obeliskMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 });
+      const obelisk = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.6, 4), obeliskMat);
+      obelisk.position.y = 2.4;
+      obelisk.rotation.y = Math.PI / 4;
+      plazaGroup.add(obelisk);
+
+      // Plaque Billboard
+      const plaqueTex = TextureGenerator.createGranPlazMonumentTexture();
+      const plaqueMat = new THREE.MeshBasicMaterial({ map: plaqueTex, transparent: true, side: THREE.DoubleSide });
+      const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), plaqueMat);
+      plaque.position.y = 1.4;
+      plazaGroup.add(plaque);
+      this.billboardObjects.push(plaque);
+      this.disposables.push(baseMat, obeliskMat, plaqueTex, plaqueMat, base.geometry, obelisk.geometry, plaque.geometry);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(2.5, 4.0, 2.5), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 2.0;
+      plazaGroup.add(hitBox);
+      this.disposables.push(hitBox.geometry, hitBox.material);
+
+      const plazaData = {
+        isLandmark: true,
+        landmarkId: LandmarkId.GRAN_PLAZ,
+        name: 'Gran Plaz Monument',
+        description: 'The Grand Plaza of Skara Brae. A towering white marble obelisk commemorates the peace of the realm before Mangar\'s winter curse.'
+      };
+      plazaGroup.userData = plazaData;
+      hitBox.userData = plazaData;
+
+      this.sceneGroup.add(plazaGroup);
+      this.interactableObjects.push(hitBox, plazaGroup);
+    }
+
+    // ─── 3. WESTERN CITY GATE (0, 15) ───────────────────────────────────
+    {
+      const { worldX, worldZ } = sourceToWorld(0, 15);
+      const gateGroup = new THREE.Group();
+      gateGroup.position.set(worldX, 0, worldZ);
+
+      const gateTex = TextureGenerator.createCityGatePortcullisTexture();
+      const gateMat = new THREE.MeshBasicMaterial({ map: gateTex, side: THREE.DoubleSide });
+      const gatePlane = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.8), gateMat);
+      gatePlane.position.set(0, 1.9, 0);
+      gateGroup.add(gatePlane);
+      this.disposables.push(gateTex, gateMat, gatePlane.geometry);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4.0, 1.5), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 2.0;
+      gateGroup.add(hitBox);
+      this.disposables.push(hitBox.geometry, hitBox.material);
+
+      const gateData = {
+        isCityGate: true,
+        landmarkId: LandmarkId.CITY_GATE,
+        name: 'Western City Gate',
+        description: 'The heavy iron portcullis of Skara Brae is frozen shut, barricaded by impenetrable fifteen-foot snowdrifts!'
+      };
+      gateGroup.userData = gateData;
+      hitBox.userData = gateData;
+
+      this.sceneGroup.add(gateGroup);
+      this.interactableObjects.push(hitBox, gateGroup);
+    }
+
+    // ─── 4. SEWERS ENTRANCE GRATE (1, 1) ────────────────────────────────
+    {
+      const { worldX, worldZ } = sourceToWorld(1, 1);
+      const sewerGroup = new THREE.Group();
+      sewerGroup.position.set(worldX, 0, worldZ);
+
+      const grateTex = TextureGenerator.createSewerGrateTexture();
+      const grateMat = new THREE.MeshBasicMaterial({ map: grateTex });
+      const grateMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), grateMat);
+      grateMesh.rotation.x = -Math.PI / 2;
+      grateMesh.position.y = 0.04;
+      sewerGroup.add(grateMesh);
+      this.disposables.push(grateTex, grateMat, grateMesh.geometry);
+
+      // Warning green light from below
+      const sewerLight = new THREE.PointLight(0x22c55e, 2.2, 5.0);
+      sewerLight.position.set(0, 0.5, 0);
+      sewerGroup.add(sewerLight);
+      this.torches.push({ light: sewerLight, baseIntensity: 2.2 });
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 2.4), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 0.75;
+      sewerGroup.add(hitBox);
+      this.disposables.push(hitBox.geometry, hitBox.material);
+
+      const sewerData = {
+        isDungeonEntrance: true,
+        landmarkId: LandmarkId.SEWERS_ENTRANCE,
+        name: 'Skara Brae Sewers Entrance',
+        description: 'An iron-barred floor grate leads into the fetid sewers beneath Skara Brae. You can hear foul creatures stirring below.'
+      };
+      sewerGroup.userData = sewerData;
+      hitBox.userData = sewerData;
+
+      this.sceneGroup.add(sewerGroup);
+      this.interactableObjects.push(hitBox, sewerGroup);
+    }
+
+    // ─── 5. TELEPORTER PADS (25, 2) <-> (25, 7) ─────────────────────────
+    const teleporterCoords = [
+      { from: { x: 25, y: 2 }, to: { x: 25, y: 7 }, name: 'South Teleporter' },
+      { from: { x: 25, y: 7 }, to: { x: 25, y: 2 }, name: 'North Teleporter' }
+    ];
+
+    teleporterCoords.forEach(tp => {
+      const { worldX, worldZ } = sourceToWorld(tp.from.x, tp.from.y);
+      const padGroup = new THREE.Group();
+      padGroup.position.set(worldX, 0, worldZ);
+
+      const padTex = TextureGenerator.createTeleportPadTexture();
+      const padMat = new THREE.MeshBasicMaterial({ map: padTex });
+      const padMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), padMat);
+      padMesh.rotation.x = -Math.PI / 2;
+      padMesh.position.y = 0.03;
+      padGroup.add(padMesh);
+
+      // Swirling Cyan/Magenta Point Light
+      const tpLight = new THREE.PointLight(0x06b6d4, 2.5, 6.0);
+      tpLight.position.set(0, 0.8, 0);
+      padGroup.add(tpLight);
+      this.torches.push({ light: tpLight, baseIntensity: 2.5 });
+
+      this.disposables.push(padTex, padMat, padMesh.geometry);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.2, 2.6), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 0.6;
+      padGroup.add(hitBox);
+      this.disposables.push(hitBox.geometry, hitBox.material);
+
+      const tpData = {
+        isTeleporter: true,
+        sourceCoords: tp.from,
+        targetCoords: tp.to,
+        name: tp.name,
+        description: 'A shimmering arcane teleportation rune hums on the cobblestones.'
+      };
+      padGroup.userData = tpData;
+      hitBox.userData = tpData;
+
+      this.sceneGroup.add(padGroup);
+      this.interactableObjects.push(hitBox, padGroup);
+    });
+
+    // ─── 6. DUNGEONS & TOWERS (Harkyn's, Kylearan's, Mangar's) ───────────
+    const dungeonFortresses = [
+      {
+        id: LandmarkId.HARKYNS_CASTLE,
+        coords: { x: 4, y: 24 },
+        name: "Lord Harkyn's Castle",
+        color: 0xef4444,
+        description: "The fortified stone portcullis of Lord Harkyn's Castle. Within lies a deadly gauntlet of swordsmen and arcane traps."
+      },
+      {
+        id: LandmarkId.KYLEARANS_TOWER,
+        coords: { x: 28, y: 27 },
+        name: "Kylearan's Amber Tower",
+        color: 0xf59e0b,
+        description: "A shimmering amber portal marks the entrance to Kylearan's mystical tower of illusions."
+      },
+      {
+        id: LandmarkId.MANGARS_TOWER,
+        coords: { x: 2, y: 2 },
+        name: "Mangar's Obsidian Tower",
+        color: 0x9333ea,
+        description: "The sinister obsidian stronghold of the evil archmage Mangar. Dark energies crackle around the iron door."
+      },
+      {
+        id: LandmarkId.STABLES,
+        coords: { x: 4, y: 15 },
+        name: "Skara Brae Stables",
+        color: 0x78350f,
+        description: "The city stables. The horses have all been moved inside for shelter against the eternal winter."
+      },
+      {
+        id: LandmarkId.CREDITS_SQUARE,
+        coords: { x: 26, y: 15 },
+        name: "Credits Square",
+        color: 0x38bdf8,
+        description: "A commemorative bronze plaque dedicated to Michael Cranford, Brian Fargo, and the creators of The Bard's Tale (1985)."
+      }
+    ];
+
+    dungeonFortresses.forEach(df => {
+      const { worldX, worldZ } = sourceToWorld(df.coords.x, df.coords.y);
+      const fortressGroup = new THREE.Group();
+      fortressGroup.position.set(worldX, 0, worldZ);
+
+      // Arcane portal glow
+      const dLight = new THREE.PointLight(df.color, 3.0, 7.0);
+      dLight.position.set(0, 2.0, 0);
+      fortressGroup.add(dLight);
+      this.torches.push({ light: dLight, baseIntensity: 3.0 });
+
+      // Hitbox
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(3.0, 4.0, 3.0), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 2.0;
+      fortressGroup.add(hitBox);
+      this.disposables.push(hitBox.geometry, hitBox.material);
+
+      const dfData = {
+        isDungeonEntrance: true,
+        landmarkId: df.id,
+        name: df.name,
+        coords: df.coords,
+        description: df.description
+      };
+      fortressGroup.userData = dfData;
+      hitBox.userData = dfData;
+
+      this.sceneGroup.add(fortressGroup);
+      this.interactableObjects.push(hitBox, fortressGroup);
+    });
+  }
+
   initDebugGrid() {
     const minX = 23, maxX = 28;
     const minY = 16, maxY = 21;
@@ -945,15 +1306,29 @@ export class SkaraBraeStreetScene {
   update(deltaTime) {
     if (!this.sceneGroup.visible) return;
 
-    // 1. Torch light flicker
     const time = performance.now() * 0.001;
+
+    // 1. Update animated sprite billboard loops
+    if (this.animatedUpdaters && this.animatedUpdaters.length > 0) {
+      this.animatedUpdaters.forEach(updater => updater(time));
+    }
+
+    // 2. Torch light flicker
     this.torches.forEach((t, idx) => {
       t.light.intensity = t.baseIntensity + (Math.sin(time * 10 + idx * 2.5) * 0.35 + (Math.random() - 0.5) * 0.15);
     });
 
-    // 2. Slow subtle sky rotation
+    // 3. Slow subtle sky rotation
     if (this.skyMesh) {
       this.skyMesh.rotation.y += deltaTime * 0.004;
+    }
+
+    // 4. Align all statue & monument billboards to face camera (keeping upright Y)
+    if (this.camera && this.billboardObjects.length > 0) {
+      const camPos = this.camera.position;
+      this.billboardObjects.forEach(b => {
+        b.lookAt(camPos.x, b.position.y, camPos.z);
+      });
     }
   }
 
@@ -976,6 +1351,7 @@ export class SkaraBraeStreetScene {
     });
     this.disposables = [];
     this.interactableObjects = [];
+    this.billboardObjects = [];
     this.torches = [];
     this.facadeMaterialCache.clear();
     if (this.sceneGroup.parent) {
@@ -983,3 +1359,4 @@ export class SkaraBraeStreetScene {
     }
   }
 }
+

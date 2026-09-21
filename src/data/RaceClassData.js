@@ -1,3 +1,5 @@
+import { autoEquipCharacter } from './ItemDatabase.js';
+
 // RaceClassData.js - Race Attributes, Class Definitions, Level-Up Tables & Class Change Mechanics
 // Faithful to the 1985 Bard's Tale manual.
 
@@ -468,6 +470,9 @@ export function createCharacter(name, raceName, className) {
       misc: null
     }
   };
+
+  autoEquipCharacter(char);
+  return char;
 }
 
 // ─── CLASS-SPECIFIC COMBAT MECHANICS ────────────────────────────────────

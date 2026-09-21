@@ -1050,14 +1050,14 @@ export class RetroRoom {
       this.screenOverlay.material.opacity = 0.0;
     }
 
-    // Line player avatar directly up with the desk (x = -0.10), placed at the very back of the room (z = 2.4)
+    // Line player avatar directly up with the desk (x = -0.10), placed at the back of the room (z = 2.6)
     if (this.xrRig) {
-      this.xrRig.setPosition(-0.10, 0, 2.4);
+      this.xrRig.setPosition(-0.10, 0, 2.6);
       this.xrRig.setYRotation(0);
     }
-    this.camera.position.set(0, 1.18, 0); // Eye height at 1.18m
+    this.camera.position.set(0, 1.22, 0); // Comfortable eye height
     this.camera.rotation.set(0, 0, 0);
-    this.camera.lookAt(-0.10, 1.05, -0.68); // Look directly forward toward desk
+    this.camera.lookAt(-0.10, 0.95, -0.60); // Frame entire desk and CRT monitor
   }
 
   skipCinematic() {
@@ -1129,21 +1129,21 @@ export class RetroRoom {
     }
 
     // Cinematic State Machine:
-    // 1. DOLLY_TO_DESK (0.0s - 3.5s): Advance smoothly from back of room (z=2.4) to desk (z=0.15), aligned at x=-0.10
+    // 1. DOLLY_TO_DESK (0.0s - 3.5s): Advance smoothly from back of room (z=2.6) to comfortable seated desk distance (z=0.52)
     if (this.cinematicPhase === 'DOLLY_TO_DESK') {
       const duration = 3.5;
       const progress = Math.min(1.0, this.cinematicTime / duration);
       const ease = progress * progress * (3 - 2 * progress); // Smoothstep
 
-      const currentZ = THREE.MathUtils.lerp(2.4, 0.15, ease);
+      const currentZ = THREE.MathUtils.lerp(2.6, 0.52, ease);
       if (this.xrRig) {
         this.xrRig.setPosition(-0.10, 0, currentZ);
       } else {
-        this.camera.position.set(-0.10, 1.18, currentZ);
+        this.camera.position.set(-0.10, 1.22, currentZ);
       }
 
-      // Look straight ahead at desk center
-      this.camera.lookAt(-0.10, 1.05, -0.68);
+      // Look straight ahead at desk center framing C64, drive, and monitor
+      this.camera.lookAt(-0.10, 0.98, -0.55);
 
       if (progress >= 1.0) {
         this.cinematicPhase = 'LOOK_DOWN_DISK';
@@ -1157,7 +1157,7 @@ export class RetroRoom {
       const ease = progress * progress * (3 - 2 * progress);
 
       // Smoothly tilt attention down from desk center to floppy disk (0.14, 0.77, -0.38)
-      const lookDesk = new THREE.Vector3(-0.10, 1.05, -0.68);
+      const lookDesk = new THREE.Vector3(-0.10, 0.98, -0.55);
       const lookDisk = new THREE.Vector3(0.14, 0.77, -0.38);
       const currentLook = new THREE.Vector3().lerpVectors(lookDesk, lookDisk, ease);
       this.camera.lookAt(currentLook);
@@ -1177,7 +1177,7 @@ export class RetroRoom {
 
       // Smoothly tilt gaze back up from floppy disk to CRT monitor screen (-0.22, 1.15, -0.68)
       const lookDisk = new THREE.Vector3(0.14, 0.77, -0.38);
-      const lookMonitor = new THREE.Vector3(-0.22, 1.15, -0.68);
+      const lookMonitor = new THREE.Vector3(-0.22, 1.12, -0.68);
       const lookUpProgress = Math.min(1.0, bootTime / 0.8);
       const lookUpEase = lookUpProgress * lookUpProgress * (3 - 2 * lookUpProgress);
       const currentLook = new THREE.Vector3().lerpVectors(lookDisk, lookMonitor, lookUpEase);
@@ -1224,13 +1224,13 @@ export class RetroRoom {
         this.particleVortex.update(deltaTime || 0.016, progress);
       }
 
-      // Suck player forward through the monitor screen (z=0.15 -> z=-0.60)
-      const currentZ = THREE.MathUtils.lerp(0.15, -0.60, progress * progress);
+      // Suck player forward through the monitor screen (z=0.52 -> z=-0.60)
+      const currentZ = THREE.MathUtils.lerp(0.52, -0.60, progress * progress);
       const currentX = THREE.MathUtils.lerp(-0.10, -0.28, progress);
       if (this.xrRig) {
         this.xrRig.setPosition(currentX, 0, currentZ);
       } else {
-        this.camera.position.set(currentX, 1.18, currentZ);
+        this.camera.position.set(currentX, 1.22, currentZ);
       }
 
       // Perspective 360° Barrel Roll (camera.rotation.z 0 to 2*PI)

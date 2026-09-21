@@ -16,12 +16,17 @@ import { SkaraBraeStreetScene } from './world/skara-brae/SkaraBraeStreetScene.js
 import { CombatArena } from './world/combat-zone/CombatArena.js';
 import { PalmBookMenu } from './ui/spatial-hud/PalmBookMenu.js';
 import { GrimoireTutorialWindow } from './ui/spatial-hud/GrimoireTutorialWindow.js';
+import { SpatialInstructionWindow } from './ui/spatial-hud/SpatialInstructionWindow.js';
+import { TAVERN_TUTORIAL_PATRONS } from './data/TavernTutorialData.js';
 import { PartyCreationUI } from './ui/PartyCreationUI.js';
 import { CharacterCardUI } from './ui/CharacterCardUI.js';
 import { TempleUI } from './ui/TempleUI.js';
 import { RoscoeUI } from './ui/RoscoeUI.js';
 import { ReviewBoardUI } from './ui/ReviewBoardUI.js';
 import { GameDirector } from './agents/game-director/GameDirector.js';
+import { createCharacter } from './data/RaceClassData.js';
+import { autoEquipParty } from './data/ItemDatabase.js';
+import { sourceToWorld, worldToSource } from './data/SkaraBraeMapData.js';
 
 class BardsTaleApp {
   constructor() {
@@ -158,6 +163,9 @@ class BardsTaleApp {
 
     // Spatially Locked Transparent Grimoire Tutorial Window (5-second auto fade)
     this.grimoireTutorial = new GrimoireTutorialWindow(this.scene);
+    this.instructionWindow = new SpatialInstructionWindow(this.scene, {
+      onAction: (key) => this.handleInstructionAction(key)
+    });
 
     // Character Cards & Inventory Management Modal
     this.characterCardUI = new CharacterCardUI(this.gameLoop.party, (msg) => this.showToast(msg));
@@ -297,6 +305,60 @@ class BardsTaleApp {
     }
   }
 
+  /**
+   * Automatically initializes and equips the canonical 6-hero starter party if not present.
+   */
+  ensureStarterParty() {
+    if (!this.gameLoop.party || this.gameLoop.party.length < 6) {
+      const starterParty = [
+        createCharacter('Elric', 'Human', 'Paladin'),
+        createCharacter('Gaelen', 'Elf', 'Bard'),
+        createCharacter('Thorin', 'Dwarf', 'Warrior'),
+        createCharacter('Shadow', 'Hobbit', 'Rogue'),
+        createCharacter('Kael', 'Half-Elf', 'Conjurer'),
+        createCharacter('Morgana', 'Human', 'Magician')
+      ];
+      autoEquipParty(starterParty);
+      this.syncParty(starterParty);
+      console.log('[BardsTaleApp] Canonical starter party of 6 heroes assembled and auto-equipped.');
+    }
+  }
+
+  /**
+   * Synchronizes active party roster and status across all UI components and game systems.
+   */
+  syncParty(party) {
+    this.gameLoop.setParty(party);
+    if (this.garthsShop) this.garthsShop.party = party;
+    if (this.timeEngine) this.timeEngine.setParty(party);
+    if (this.templeUI) this.templeUI.setParty(party);
+    if (this.roscoeUI) this.roscoeUI.setParty(party);
+    if (this.reviewBoardUI) this.reviewBoardUI.setParty(party);
+    if (this.characterCardUI) this.characterCardUI.setParty(party);
+    if (this.grimoire) this.grimoire.updatePartyData(party);
+  }
+
+  /**
+   * Teleports party to target grid coordinates with visual flash and sound.
+   */
+  triggerTeleport(targetCoords) {
+    if (this._tpCooldown || !targetCoords) return;
+    this._tpCooldown = true;
+
+    const { worldX, worldZ } = sourceToWorld(targetCoords.x, targetCoords.y);
+    this.xrRig.setPosition(worldX, 0, worldZ);
+    this.skaraBraeGrid.revealTile(worldX, worldZ);
+
+    this.synth.init();
+    this.synth.playSequence(['C5', 'G4', 'E5', 'C6'], 90);
+    this.gamepad.vibrate(0.7, 250);
+    this.showToast(`✨ Whoosh! A magical vortex teleports your party to (${targetCoords.x}, ${targetCoords.y})!`);
+
+    setTimeout(() => {
+      this._tpCooldown = false;
+    }, 2000);
+  }
+
   handleStateTransition(newState) {
     this.showToast(`🌌 Transitioning Location: ${newState}`);
 
@@ -322,22 +384,23 @@ class BardsTaleApp {
     if (newState === GameState.RETRO_ROOM) {
       this.retroRoom.setVisible(true);
       this.grimoire.setEnabled(false);
-      this.grimoireTutorial.hide();
+      this.instructionWindow.hide();
       this.retroRoom.startCinematicSequence(() => {
         this.gameLoop.setState(GameState.TAVERN_INTRO);
       });
     } else if (newState === GameState.TAVERN_INTRO) {
       this.tavern.setVisible(true);
       this.grimoire.setEnabled(false);
-      this.grimoireTutorial.hide();
+      this.instructionWindow.hide();
       this.xrRig.setPosition(0, 0, 1.2);
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level with Bard/patrons (1.18m)
       this.camera.rotation.z = 0; // Ensure roll is cleared
       this.synth.init();
       this.singer.startSong();
       this.tavern.playEntranceTransition();
-      this.showToast("🍺 Welcome to Skara Brae Tavern!");
+      this.showToast("🍺 Welcome to Skara Brae Tavern! Click Bard or Patrons for guides.");
     } else if (newState === GameState.GARTHS_SHOP) {
+      this.ensureStarterParty();
       this.singer.stopSong();
       this.garthsShop.setVisible(true);
       this.grimoire.setEnabled(true);
@@ -345,12 +408,30 @@ class BardsTaleApp {
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level (1.18m)
       this.camera.rotation.z = 0;
 
-      // Introduce the book and show spatially locked transparent tutorial menu
+      // Introduce the book with the premium Glassmorphism SpatialInstructionWindow
       const headPos = new THREE.Vector3();
       const headQuat = new THREE.Quaternion();
       this.camera.getWorldPosition(headPos);
       this.camera.getWorldQuaternion(headQuat);
-      this.grimoireTutorial.show(headPos, headQuat);
+
+      this.instructionWindow.show({
+        title: "The Bard's Grimoire Unlocked",
+        subtitle: "Palm-Flip Grimoire & Diegetic Automap Calibrated",
+        sprite: "/assets/sprites/bt1_04.png",
+        pages: [
+          {
+            heading: "✨ Spatial Hand & Controller Instructions",
+            bullets: [
+              { icon: "🖐️", title: "FLIP PALM UP", desc: "Turn your hand palm-up to summon the 3D Grimoire near your face.", color: "#a855f7" },
+              { icon: "🖐️", title: "FLIP PALM DOWN", desc: "Turn your hand palm-down or lower your arm to dispel & close the book.", color: "#a855f7" },
+              { icon: "🎮", title: "CONTROLLER BUTTONS [Y] / [X] / [M]", desc: "Press [Y] or [X] on your left controller (or [M] on desktop) for HUD mode.", color: "#38bdf8" },
+              { icon: "📖", title: "HEROES, AUTOMAP & LIVE SPELLS", desc: "Point your controller ray and pull trigger to inspect heroes or test spells live.", color: "#f59e0b" }
+            ]
+          }
+        ],
+        autoDismissSeconds: 7
+      }, headPos, headQuat);
+
       this.synth.init();
       this.synth.playSequence(['E4', 'G4', 'B4', 'E5'], 140);
       this.showToast("✨ The Grimoire is now unlocked! Flip your palm UP to summon.");
@@ -358,7 +439,9 @@ class BardsTaleApp {
         this.xr.triggerHaptics(0, 0.6, 120);
       }
     } else if (newState === GameState.SKARA_BRAE_STREETS) {
+      this.ensureStarterParty();
       this.singer.stopSong();
+      this.instructionWindow.hide();
       this.streetScene.setVisible(true);
       this.skaraBraeGrid.setVisible(true);
       this.grimoire.setEnabled(true);
@@ -371,6 +454,7 @@ class BardsTaleApp {
       this.skaraBraeGrid.revealTile(31.5, -10.5);
       this.showToast("🏰 You step out into the streets of Skara Brae outside Garth's Shoppe");
     } else if (newState === GameState.COMBAT_ZONE) {
+      this.ensureStarterParty();
       this.grimoire.setEnabled(true);
       this.xrRig.setPosition(0, 0, 0);
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level (1.18m)
@@ -417,6 +501,21 @@ class BardsTaleApp {
     const handleInteraction = (raycaster, controllerIndex = null, isGrip = false) => {
       if (!raycaster) return;
 
+      // Check Spatial Instruction Glassmorphism Window touch/clicks if active
+      if (this.instructionWindow && this.instructionWindow.active && this.instructionWindow.mesh) {
+        const instIntersects = raycaster.intersectObject(this.instructionWindow.mesh);
+        if (instIntersects.length > 0) {
+          const hit = instIntersects[0];
+          if (hit.uv) {
+            if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.6, 80);
+            this.synth.init();
+            this.synth.playSequence(['E4', 'A4'], 80);
+            this.instructionWindow.handleClick(hit.uv);
+            return;
+          }
+        }
+      }
+
       // Check Grimoire Canvas Touch Clicks if open
       if (this.grimoire.isOpen) {
         const bookIntersects = raycaster.intersectObject(this.grimoire.textMesh);
@@ -460,12 +559,44 @@ class BardsTaleApp {
         const intersects = raycaster.intersectObjects(this.garthsShop.interactableObjects, true);
         if (intersects.length > 0) {
           let obj = intersects[0].object;
-          while (obj && !obj.userData.isWeapon && !obj.userData.isExitDoor && !obj.userData.isAutoEquipParty && !obj.userData.isCharacterCards && obj.parent) {
+          while (obj && !obj.userData.isWeapon && !obj.userData.isExitDoor && !obj.userData.isAutoEquipParty && !obj.userData.isCharacterCards && !obj.userData.isGarthNPC && obj.parent) {
             obj = obj.parent;
           }
           if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.75, 100);
-          if (obj && obj.userData.isWeapon) {
-            this.garthsShop.equipItem(obj.userData.itemData || obj.userData.name, (msg) => this.showToast(msg));
+          if (obj && obj.userData.isGarthNPC) {
+            const headPos = new THREE.Vector3();
+            const headQuat = new THREE.Quaternion();
+            this.camera.getWorldPosition(headPos);
+            this.camera.getWorldQuaternion(headQuat);
+            this.instructionWindow.show({
+              title: "Garth's Armory & Guild Roster",
+              subtitle: "Master Blacksmith & Outfitter of Skara Brae",
+              sprite: "/assets/sprites/bt1_56.png",
+              pages: [
+                {
+                  heading: "⚔️ Assemble Your Adventuring Party",
+                  text: "Greetings, traveler! I am Garth. Before you venture forth into Skara Brae, assemble your 6-hero guild party. You can craft a custom company or use the canonical starter party. All recruits start equipped with basic weapons and armor!"
+                }
+              ],
+              buttons: [
+                { label: "🎲 Create New Party", actionKey: "openPartyCreation", primary: true, width: 220 },
+                { label: "⚔️ Use Starter Party (6)", actionKey: "useStarterParty", primary: false, width: 230 }
+              ]
+            }, headPos, headQuat);
+            this.synth.init();
+            this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
+            this.showToast("🛡️ Garth: \"Assemble your company, brave traveler!\"");
+          } else if (obj && obj.userData.isWeapon) {
+            const holder = controllerIndex !== null ? (this.xr.controllerGrips[controllerIndex] || this.xr.controllers[controllerIndex]) : this.camera;
+            const holderIdx = controllerIndex !== null ? controllerIndex : 'desktop';
+            const held = this.garthsShop.getHeldWeapon(holderIdx);
+            if (held && (held.group === obj || held.hitBox === obj)) {
+              this.garthsShop.releaseWeapon(obj, this.synth, this.xr);
+              this.showToast(`⚔️ Returned ${obj.userData.name} to display counter.`);
+            } else {
+              this.garthsShop.grabWeapon(obj, holder, holderIdx, this.synth, this.xr);
+              this.showToast(`⚔️ Holding ${obj.userData.name}! ${controllerIndex !== null ? 'Swing your controller' : 'Left Click / [Space]'} to swing, [G] to return.`);
+            }
           } else if (obj && obj.userData.isAutoEquipParty) {
             this.garthsShop.autoEquipEntireParty((msg) => this.showToast(msg));
             this.characterCardUI.setParty(this.gameLoop.party);
@@ -475,40 +606,65 @@ class BardsTaleApp {
           } else if (obj && obj.userData.isExitDoor) {
             this.gameLoop.setState(GameState.SKARA_BRAE_STREETS);
           }
+        } else {
+          // If clicked on empty space on desktop while holding a weapon, swing it!
+          if (controllerIndex === null && this.garthsShop.getHeldWeapon('desktop')) {
+            this.garthsShop.triggerDesktopSwing(this.synth);
+          }
         }
       } else if (state === GameState.SKARA_BRAE_STREETS) {
         const intersects = raycaster.intersectObjects(this.streetScene.interactableObjects, true);
         if (intersects.length > 0) {
           let obj = intersects[0].object;
-          while (obj && !obj.userData.isGarthDoor && !obj.userData.isTavernDoor && !obj.userData.isGuildDoor && !obj.userData.isReviewBoardDoor && !obj.userData.isTempleDoor && !obj.userData.isRoscoeDoor && obj.parent) {
+          while (obj && !obj.userData.isGarthDoor && !obj.userData.isTavernDoor && !obj.userData.isGuildDoor && !obj.userData.isReviewBoardDoor && !obj.userData.isTempleDoor && !obj.userData.isRoscoeDoor && !obj.userData.isStatue && !obj.userData.isLandmark && !obj.userData.isCityGate && !obj.userData.isDungeonEntrance && !obj.userData.isTeleporter && obj.parent) {
             obj = obj.parent;
           }
           if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.75, 100);
-          if (obj && obj.userData.isGarthDoor) {
-            if (this.timeEngine.areTownServicesOpen) {
-              this.gameLoop.setState(GameState.GARTHS_SHOP);
-              this.showToast("🛡️ Entering Garth's Equipment Shoppe...");
-            } else {
-              this.showToast("🚪 Garth's Equipment Shoppe is shuttered for the night. Return at daybreak or rest at the Adventurers Guild!");
+          if (obj) {
+            if (obj.userData.isGarthDoor) {
+              if (this.timeEngine.areTownServicesOpen) {
+                this.gameLoop.setState(GameState.GARTHS_SHOP);
+                this.showToast("🛡️ Entering Garth's Equipment Shoppe...");
+              } else {
+                this.showToast("🚪 Garth's Equipment Shoppe is shuttered for the night. Return at daybreak or rest at the Adventurers Guild!");
+              }
+            } else if (obj.userData.isTavernDoor) {
+              this.gameLoop.setState(GameState.TAVERN_INTRO);
+              this.showToast("🍺 Entering The Scarlet Bard Tavern...");
+            } else if (obj.userData.isGuildDoor) {
+              this.timeEngine.restUntilMorning();
+              this.synth.init();
+              this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 180);
+              this.partyUI.show();
+            } else if (obj.userData.isReviewBoardDoor) {
+              if (this.timeEngine.areTownServicesOpen) {
+                this.reviewBoardUI.show(this.gameLoop.party);
+              } else {
+                this.showToast("📜 The Review Board is closed until morning light. Seek shelter at the Adventurers Guild.");
+              }
+            } else if (obj.userData.isTempleDoor) {
+              this.templeUI.show(obj.userData.templeName, obj.userData.isTarjan);
+            } else if (obj.userData.isRoscoeDoor) {
+              this.roscoeUI.show(this.gameLoop.party);
+            } else if (obj.userData.isStatue) {
+              this.synth.init();
+              this.synth.playSequence(['D4', 'A4', 'D5'], 150);
+              this.showToast(`🗿 ${obj.userData.name}: "${obj.userData.description}"`);
+            } else if (obj.userData.isLandmark) {
+              this.synth.init();
+              this.synth.playSequence(['E4', 'G4', 'C5'], 150);
+              this.showToast(`🏛️ ${obj.userData.name}: "${obj.userData.description}"`);
+            } else if (obj.userData.isCityGate) {
+              this.synth.init();
+              this.synth.playSequence(['C3', 'E3', 'G3'], 220);
+              this.showToast(`❄️ ${obj.userData.name}: "${obj.userData.description}"`);
+            } else if (obj.userData.isDungeonEntrance) {
+              this.synth.init();
+              this.synth.playSequence(['D3', 'F3', 'A3', 'D4'], 180);
+              this.showToast(`🏰 ${obj.userData.name}: "${obj.userData.description}"`);
+            } else if (obj.userData.isTeleporter) {
+              this.triggerTeleport(obj.userData.targetCoords);
             }
-          } else if (obj && obj.userData.isTavernDoor) {
-            this.gameLoop.setState(GameState.TAVERN_INTRO);
-            this.showToast("🍺 Entering The Scarlet Bard Tavern...");
-          } else if (obj && obj.userData.isGuildDoor) {
-            this.timeEngine.restUntilMorning();
-            this.synth.init();
-            this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 180);
-            this.partyUI.show();
-          } else if (obj && obj.userData.isReviewBoardDoor) {
-            if (this.timeEngine.areTownServicesOpen) {
-              this.reviewBoardUI.show(this.gameLoop.party);
-            } else {
-              this.showToast("📜 The Review Board is closed until morning light. Seek shelter at the Adventurers Guild.");
-            }
-          } else if (obj && obj.userData.isTempleDoor) {
-            this.templeUI.show(obj.userData.templeName, obj.userData.isTarjan);
-          } else if (obj && obj.userData.isRoscoeDoor) {
-            this.roscoeUI.show(this.gameLoop.party);
           }
         }
       } else if (state === GameState.COMBAT_ZONE) {
@@ -532,18 +688,54 @@ class BardsTaleApp {
           this.combatArena.executeCommand(action, this.synth, (i, int, d) => this.xr.triggerHaptics(i, int, d));
         }
       } else if (state === GameState.TAVERN_INTRO) {
+        // First check if clicking inside 3D dialogue window
+        if (this.tavern.dialogueMesh && this.tavern.dialogueGroup && this.tavern.dialogueGroup.visible) {
+          const dialogueIntersects = raycaster.intersectObjects([this.tavern.dialogueMesh], true);
+          if (dialogueIntersects.length > 0) {
+            const hit = dialogueIntersects[0];
+            if (hit.uv) {
+              if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.6, 60);
+              this.synth.init();
+              this.synth.playSequence(['E4', 'A4'], 80);
+              this.tavern.handleDialogueClick(hit.uv);
+              return;
+            }
+          }
+        }
+
         const intersects = raycaster.intersectObjects(this.tavern.interactableObjects, true);
         if (intersects.length > 0) {
           let obj = intersects[0].object;
-          while (obj && !obj.userData.isBard && !obj.userData.isDoor && !obj.userData.isAleMug && obj.parent) {
+          while (obj && !obj.userData.isPatron && !obj.userData.isBard && !obj.userData.isDoor && !obj.userData.isAleMug && !obj.userData.isTavernDialogue && obj.parent) {
             obj = obj.parent;
           }
           if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.75, 100);
-          if (obj && obj.userData.isBard) {
-            this.partyUI.show();
+
+          if (obj && obj.userData.isTavernDialogue) {
+            const hit = intersects[0];
+            if (hit.uv) {
+              this.synth.init();
+              this.synth.playSequence(['E4', 'A4'], 80);
+              this.tavern.handleDialogueClick(hit.uv);
+            }
+          } else if (obj && (obj.userData.isPatron || obj.userData.isBard)) {
+            const key = obj.userData.patronKey || 'bard';
+            const patronData = TAVERN_TUTORIAL_PATRONS[key];
+            if (patronData) {
+              const headPos = new THREE.Vector3();
+              const headQuat = new THREE.Quaternion();
+              this.camera.getWorldPosition(headPos);
+              this.camera.getWorldQuaternion(headQuat);
+              this.instructionWindow.show(patronData, headPos, headQuat);
+              this.synth.init();
+              this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
+              this.showToast(`📜 ${patronData.name}: "${patronData.greeting}"`);
+            }
           } else if (obj && obj.userData.isDoor) {
             this.gameLoop.setState(GameState.GARTHS_SHOP);
           } else if (obj && obj.userData.isAleMug) {
+            this.synth.init();
+            this.synth.playSequence(['G3', 'C4', 'E4'], 120);
             this.tavern.drinkMug(obj, (msg) => this.showToast(msg));
           }
         }
@@ -573,6 +765,50 @@ class BardsTaleApp {
     this.xr.onSqueeze = (controllerIndex, controller, raycaster) => {
       handleInteraction(raycaster, controllerIndex, true);
     };
+    this.xr.onSqueezeEnd = (controllerIndex, controller, raycaster) => {
+      if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
+        const held = this.garthsShop.getHeldWeapon(controllerIndex);
+        if (held) {
+          this.garthsShop.releaseWeapon(held, this.synth, this.xr);
+          this.showToast(`⚔️ Released ${held.name} back to counter.`);
+        }
+      }
+    };
+
+    // Right-click or Desktop shortcut to release/drop weapon or swing
+    window.addEventListener('contextmenu', (e) => {
+      if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
+        const held = this.garthsShop.getHeldWeapon('desktop');
+        if (held) {
+          e.preventDefault();
+          this.garthsShop.releaseWeapon(held, this.synth);
+          this.showToast(`⚔️ Returned ${held.name} to counter.`);
+        }
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyG' || e.code === 'KeyE') {
+        if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
+          const held = this.garthsShop.getHeldWeapon('desktop');
+          if (held) {
+            this.garthsShop.releaseWeapon(held, this.synth);
+            this.showToast(`⚔️ Returned ${held.name} to counter.`);
+          } else if (this.focusedTarget && this.focusedTarget.type === 'GARTH_WEAPON') {
+            this.garthsShop.grabWeapon(this.focusedTarget.object, this.camera, 'desktop', this.synth);
+            this.showToast(`⚔️ Grabbed ${this.focusedTarget.object.userData.name}! Left click to swing, [G] to return.`);
+          }
+        }
+      } else if (e.code === 'Space') {
+        if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
+          const held = this.garthsShop.getHeldWeapon('desktop');
+          if (held) {
+            e.preventDefault();
+            this.garthsShop.triggerDesktopSwing(this.synth);
+          }
+        }
+      }
+    });
 
     // HUD Action Buttons
     document.getElementById('open-party-hud-btn').addEventListener('click', () => {
@@ -672,10 +908,13 @@ class BardsTaleApp {
         const intersects = this.centerRaycaster.intersectObjects(this.garthsShop.interactableObjects, true);
         if (intersects.length > 0) {
           let obj = intersects[0].object;
-          while (obj && !obj.userData.isWeapon && !obj.userData.isExitDoor && !obj.userData.isAutoEquipParty && !obj.userData.isCharacterCards && obj.parent) {
+          while (obj && !obj.userData.isWeapon && !obj.userData.isExitDoor && !obj.userData.isAutoEquipParty && !obj.userData.isCharacterCards && !obj.userData.isGarthNPC && obj.parent) {
             obj = obj.parent;
           }
-          if (obj && obj.userData.isWeapon) {
+          if (obj && obj.userData.isGarthNPC) {
+            this.focusedTarget = { type: 'GARTH_NPC', object: obj };
+            promptText = "🛡️ [A] Talk to Garth (Party Creation)";
+          } else if (obj && obj.userData.isWeapon) {
             const name = obj.userData.name || 'Weapon';
             this.focusedTarget = { type: 'GARTH_WEAPON', object: obj };
             promptText = `⚔️ [A] Equip ${name}`;
@@ -741,12 +980,18 @@ class BardsTaleApp {
         let doorHit = false;
         if (intersects.length > 0) {
           let obj = intersects[0].object;
-          while (obj && !obj.userData.isBard && !obj.userData.isDoor && !obj.userData.isAleMug && obj.parent) {
+          while (obj && !obj.userData.isPatron && !obj.userData.isBard && !obj.userData.isDoor && !obj.userData.isAleMug && !obj.userData.isTavernDialogue && obj.parent) {
             obj = obj.parent;
           }
-          if (obj && obj.userData.isBard) {
+          if (obj && obj.userData.isTavernDialogue) {
+            this.focusedTarget = { type: 'TAVERN_DIALOGUE', hit: intersects[0] };
+            promptText = '📜 [A] Click Dialogue Button';
+          } else if (obj && obj.userData.isPatron) {
+            this.focusedTarget = { type: 'TAVERN_PATRON', object: obj, patronKey: obj.userData.patronKey };
+            promptText = `📜 [A] Talk to ${obj.userData.name} (Game Guide)`;
+          } else if (obj && obj.userData.isBard) {
             this.focusedTarget = { type: 'TAVERN_BARD', object: obj };
-            promptText = '📜 [A] Talk to Bard (Party Creation)';
+            promptText = '🎵 [A] Talk to Bard (Songs & Party)';
           } else if (obj && obj.userData.isDoor) {
             this.focusedTarget = { type: 'TAVERN_DOOR', object: obj };
             promptText = "🚪 [A] Enter Garth's Shop";
@@ -754,15 +999,6 @@ class BardsTaleApp {
           } else if (obj && obj.userData.isAleMug) {
             this.focusedTarget = { type: 'TAVERN_ALE', object: obj };
             promptText = "🍺 [A] Drink Skara Brae Dark Ale";
-          }
-        }
-
-        if (!doorHit) {
-          const headPos = this.xrRig.getWorldHeadPosition();
-          if (this.tavern.checkDoorProximity(headPos, 2.5)) {
-            this.focusedTarget = { type: 'TAVERN_DOOR' };
-            promptText = "🚪 [A] Enter Garth's Shop";
-            doorHit = true;
           }
         }
 
@@ -800,15 +1036,56 @@ class BardsTaleApp {
         this.showToast("💾 Sliding Floppy Disk into 1541 Drive...");
         this.gamepad.vibrate(0.4, 150);
       }
-    } else if (target.type === 'TAVERN_BARD') {
-      this.partyUI.show();
-      this.gamepad.vibrate(0.3, 100);
+    } else if (target.type === 'TAVERN_PATRON' || target.type === 'TAVERN_BARD') {
+      const key = target.patronKey || (target.type === 'TAVERN_BARD' ? 'bard' : 'wizard');
+      const patronData = TAVERN_TUTORIAL_PATRONS[key];
+      if (patronData) {
+        const headPos = new THREE.Vector3();
+        const headQuat = new THREE.Quaternion();
+        this.camera.getWorldPosition(headPos);
+        this.camera.getWorldQuaternion(headQuat);
+        this.instructionWindow.show(patronData, headPos, headQuat);
+        this.synth.init();
+        this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
+        this.showToast(`📜 ${patronData.name}: "${patronData.greeting}"`);
+      }
+      this.gamepad.vibrate(0.4, 100);
+    } else if (target.type === 'TAVERN_DIALOGUE') {
+      if (target.hit && target.hit.uv) {
+        this.synth.init();
+        this.synth.playSequence(['E4', 'A4'], 80);
+        this.instructionWindow.handleClick(target.hit.uv);
+      }
     } else if (target.type === 'TAVERN_DOOR') {
       this.gameLoop.setState(GameState.GARTHS_SHOP);
       this.gamepad.vibrate(0.4, 120);
     } else if (target.type === 'TAVERN_ALE') {
       this.tavern.drinkMug(target.object, (msg) => this.showToast(msg));
       this.gamepad.vibrate(0.5, 200);
+    } else if (target.type === 'GARTH_NPC') {
+      const headPos = new THREE.Vector3();
+      const headQuat = new THREE.Quaternion();
+      this.camera.getWorldPosition(headPos);
+      this.camera.getWorldQuaternion(headQuat);
+      this.instructionWindow.show({
+        title: "Garth's Armory & Guild Roster",
+        subtitle: "Master Blacksmith & Outfitter of Skara Brae",
+        sprite: "/assets/sprites/bt1_56.png",
+        pages: [
+          {
+            heading: "⚔️ Assemble Your Adventuring Party",
+            text: "Greetings, traveler! I am Garth. Before you venture forth into Skara Brae, assemble your 6-hero guild party. You can craft a custom company or use the canonical starter party. All recruits start equipped with basic weapons and armor!"
+          }
+        ],
+        buttons: [
+          { label: "🎲 Create New Party", actionKey: "openPartyCreation", primary: true, width: 220 },
+          { label: "⚔️ Use Starter Party (6)", actionKey: "useStarterParty", primary: false, width: 230 }
+        ]
+      }, headPos, headQuat);
+      this.synth.init();
+      this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
+      this.showToast("🛡️ Garth: \"Assemble your company, brave traveler!\"");
+      this.gamepad.vibrate(0.4, 100);
     } else if (target.type === 'GARTH_WEAPON') {
       const obj = target.object;
       this.garthsShop.equipItem(obj.userData.itemData || obj.userData.name, (msg) => this.showToast(msg));
@@ -859,6 +1136,21 @@ class BardsTaleApp {
     } else if (target.type === 'COMBAT_HERO') {
       this.combatArena.handleHeroSwapClick(target.mesh, (msg) => this.showToast(msg));
       this.gamepad.vibrate(0.3, 80);
+    }
+  }
+
+  handleInstructionAction(actionKey) {
+    if (actionKey === 'openPartyCreation') {
+      this.partyUI.show();
+    } else if (actionKey === 'useStarterParty') {
+      this.ensureStarterParty();
+      this.showToast("⚔️ Starter Party (6 Heroes) equipped and ready for adventure!");
+      this.synth.init();
+      this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 140);
+    } else if (actionKey === 'enterGarth') {
+      this.gameLoop.setState(GameState.GARTHS_SHOP);
+    } else if (actionKey === 'openGrimoire') {
+      this.grimoire.toggleBookDesktop();
     }
   }
 
@@ -1060,49 +1352,29 @@ class BardsTaleApp {
           this.xr.hands
         );
 
-        // Quest 2 Touch Controller Polling (Door Opening & Grimoire Toggle)
+        // Quest 2 Touch Controller Polling (Door Highlight & Grimoire Toggle)
         if (xrSession && xrSession.inputSources) {
-          // Check Tavern Door Interaction in VR: Any Button on Quest 2 Opens Door when near or pointing at it
+          // Check Tavern Door Hover in VR (Highlight when controller points directly at door)
           if (this.gameLoop.currentState === GameState.TAVERN_INTRO) {
-            const headPos = this.xrRig.getWorldHeadPosition();
-            const isNearDoor = this.tavern.checkDoorProximity(headPos, 2.6);
             let isRayOnDoor = false;
 
             for (let cIdx = 0; cIdx < 2; cIdx++) {
               if (this.xr.controllers[cIdx]) {
                 const ray = this.xr.getControllerRaycaster(this.xr.controllers[cIdx]);
                 const hits = ray.intersectObjects(this.tavern.interactableObjects, true);
-                if (hits.length > 0 && hits.some(h => {
-                  let cur = h.object;
-                  while (cur && !cur.userData.isDoor && cur.parent) cur = cur.parent;
-                  return cur && cur.userData.isDoor;
-                })) {
-                  isRayOnDoor = true;
-                  break;
-                }
-              }
-            }
-
-            const isDoorActive = isNearDoor || isRayOnDoor;
-            this.tavern.setDoorHighlighted(isDoorActive);
-            this.isTavernDoorHighlighted = isDoorActive;
-
-            if (isDoorActive) {
-              for (let idx = 0; idx < xrSession.inputSources.length; idx++) {
-                const src = xrSession.inputSources[idx];
-                if (src && src.gamepad && src.gamepad.buttons) {
-                  const anyPressed = src.gamepad.buttons.some(b => b && (b.pressed || b.value > 0.35));
-                  if (anyPressed && !this._doorCooldown) {
-                    this._doorCooldown = true;
-                    this.gameLoop.setState(GameState.GARTHS_SHOP);
-                    this.showToast("🛡️ Entering Garth's Equipment Shoppe...");
-                    this.xr.triggerHaptics(idx, 0.85, 140);
-                    setTimeout(() => { this._doorCooldown = false; }, 500);
+                if (hits.length > 0) {
+                  let topHit = hits[0].object;
+                  while (topHit && !topHit.userData.isDoor && topHit.parent) topHit = topHit.parent;
+                  if (topHit && topHit.userData.isDoor) {
+                    isRayOnDoor = true;
                     break;
                   }
                 }
               }
             }
+
+            this.tavern.setDoorHighlighted(isRayOnDoor);
+            this.isTavernDoorHighlighted = isRayOnDoor;
           }
 
           // Check WebXR Controller Y / X Button Press for Grimoire Toggle
@@ -1162,6 +1434,11 @@ class BardsTaleApp {
         }
       }
 
+      // Update Spatial Instruction Window
+      if (this.instructionWindow) {
+        this.instructionWindow.update(deltaTime);
+      }
+
       // Render Frame
       if (this.gameLoop.currentState === GameState.TAVERN_INTRO) {
         this.tavern.update(time, deltaTime);
@@ -1169,6 +1446,18 @@ class BardsTaleApp {
         this.garthsShop.update(time);
       } else if (this.gameLoop.currentState === GameState.SKARA_BRAE_STREETS) {
         this.streetScene.update(deltaTime);
+        const headPos = this.xrRig.getWorldHeadPosition();
+        this.skaraBraeGrid.revealTile(headPos.x, headPos.z);
+
+        // Step-on Teleporter check
+        if (!this._tpCooldown) {
+          const { sourceX, sourceY } = worldToSource(headPos.x, headPos.z);
+          if (sourceX === 25 && sourceY === 2) {
+            this.triggerTeleport({ x: 25, y: 7 });
+          } else if (sourceX === 25 && sourceY === 7) {
+            this.triggerTeleport({ x: 25, y: 2 });
+          }
+        }
       } else if (this.gameLoop.currentState === GameState.COMBAT_ZONE) {
         this.combatArena.update(time);
       }

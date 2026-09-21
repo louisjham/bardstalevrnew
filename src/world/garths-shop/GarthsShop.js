@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TextureGenerator } from '../../textures/TextureGenerator.js';
 import { GARTH_STANDARD_ITEMS, canClassUseItem, ItemCategory, autoEquipParty } from '../../data/ItemDatabase.js';
 import { TorchFlameShader } from '../../shaders/TorchFlameShader.js';
+import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
 
 export class GarthsShop {
   constructor(scene, camera, onExitToSkaraBrae, party, onOpenCharacterCards) {
@@ -9,6 +10,9 @@ export class GarthsShop {
     this.camera = camera;
     this.onExitToSkaraBrae = onExitToSkaraBrae;
     this.onOpenCharacterCards = onOpenCharacterCards;
+
+    this.spriteManager = new AnimatedSpriteManager();
+    this.animatedUpdaters = [];
 
     this.shopGroup = new THREE.Group();
     this.shopGroup.name = 'GarthsShop';
@@ -20,6 +24,8 @@ export class GarthsShop {
     this.torches = [];
     this.flameMeshes = [];
     this.weaponBadges = [];
+    this.weapons = [];
+    this.weaponTrails = [];
     this.garthGroup = null;
 
     this.initShopEnvironment();
@@ -191,56 +197,35 @@ export class GarthsShop {
     counter.position.set(0, 0.475, -2.2);
     this.shopGroup.add(counter);
 
-    // Garth Shopkeeper NPC
+    // 1985 Classic Animated Garth Sprite Billboard Behind Counter
     this.garthGroup = new THREE.Group();
-    this.garthGroup.position.set(0, 0, -3.1);
+    this.garthGroup.position.set(0, 0.45, -3.1);
+    this.garthGroup.userData = { isGarthNPC: true, isGarth: true, name: "Garth" };
 
-    // Body (Torso with leather vest)
-    const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.34, 0.3, 1.2, 12),
-      new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.6 }) // Brown leather vest
+    // Interactive Hitbox for Garth
+    const garthHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 2.2, 1.0),
+      new THREE.MeshBasicMaterial({ visible: false })
     );
-    body.position.y = 0.6;
-    this.garthGroup.add(body);
+    garthHitbox.position.set(0, 0.95, 0);
+    garthHitbox.userData = { isGarthNPC: true, isGarth: true, name: "Garth" };
+    this.garthGroup.add(garthHitbox);
 
-    // Leather Apron
-    const apron = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.38, 0.8),
-      new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.7 })
-    );
-    apron.position.set(0, 0.55, 0.31);
-    this.garthGroup.add(apron);
-
-    // Head
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.5 })
-    );
-    head.position.y = 1.38;
-    this.garthGroup.add(head);
-
-    // Beard
-    const beard = new THREE.Mesh(
-      new THREE.ConeGeometry(0.14, 0.24, 12),
-      new THREE.MeshStandardMaterial({ color: 0x78350f })
-    );
-    beard.position.set(0, 1.26, 0.16);
-    beard.rotation.x = Math.PI / 8;
-    this.garthGroup.add(beard);
-
-    // Arms resting on counter
-    const armMat = new THREE.MeshStandardMaterial({ color: 0x92400e });
-    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), armMat);
-    leftArm.position.set(-0.38, 0.85, 0.3);
-    leftArm.rotation.x = Math.PI / 3;
-    this.garthGroup.add(leftArm);
-
-    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), armMat);
-    rightArm.position.set(0.38, 0.85, 0.3);
-    rightArm.rotation.x = Math.PI / 3;
-    this.garthGroup.add(rightArm);
+    (async () => {
+      try {
+        const animated = await this.spriteManager.createAnimatedBillboard('/assets/sprites/bt1_56.png', 4);
+        animated.mesh.position.set(0, 0.95, 0);
+        animated.mesh.scale.set(1.05, 1.05, 1.05);
+        animated.mesh.userData = { isGarthNPC: true, isGarth: true, name: "Garth" };
+        this.garthGroup.add(animated.mesh);
+        this.animatedUpdaters.push(animated.update);
+      } catch (e) {
+        console.warn('Failed to load Garth sprite:', e);
+      }
+    })();
 
     this.shopGroup.add(this.garthGroup);
+    this.interactableObjects.push(garthHitbox, this.garthGroup);
 
     // Wall Weapon Display Racks Behind Garth
     const rackWood = new THREE.MeshStandardMaterial({ color: 0x2e1809, roughness: 0.6 });
@@ -498,12 +483,33 @@ export class GarthsShop {
       hitBox.position.set(0, 0.1, 0);
       weaponGroup.add(hitBox);
 
+      const weaponRecord = {
+        group: weaponGroup,
+        baseRing: baseRing,
+        badgeMesh: badgeMesh,
+        hitBox: hitBox,
+        initialPos: weaponGroup.position.clone(),
+        initialRot: weaponGroup.rotation.clone(),
+        itemData: item,
+        name: item.name,
+        isGrabbed: false,
+        heldBy: null,
+        heldIndex: null,
+        lastPos: new THREE.Vector3(),
+        lastSwingTime: 0,
+        swingProgress: 0,
+        isSwinging: false
+      };
+
       weaponGroup.userData = {
         isWeapon: true,
         itemData: item,
-        name: item.name
+        name: item.name,
+        weaponRecord: weaponRecord
       };
+      hitBox.userData = weaponGroup.userData;
 
+      this.weapons.push(weaponRecord);
       this.shopGroup.add(weaponGroup);
       this.interactableObjects.push(hitBox, weaponGroup);
     });
@@ -788,7 +794,143 @@ export class GarthsShop {
     }
   }
 
-  update(time) {
+  /**
+   * Grab and hold a physical 3D weapon in hand (VR controller or Desktop first-person view).
+   */
+  grabWeapon(weaponTarget, holder, holderIndex, synth = null, xrManager = null) {
+    const weaponRecord = weaponTarget?.userData?.weaponRecord || 
+      (weaponTarget?.group ? weaponTarget : this.weapons.find(w => w.group === weaponTarget || w.hitBox === weaponTarget));
+    if (!weaponRecord) return null;
+
+    // If weapon is already held, release from previous holder first
+    if (weaponRecord.isGrabbed && weaponRecord.heldBy) {
+      this.releaseWeapon(weaponRecord, synth, xrManager);
+    }
+
+    // Release any other weapon currently held by this exact holder
+    const previouslyHeld = this.getHeldWeapon(holderIndex);
+    if (previouslyHeld && previouslyHeld !== weaponRecord) {
+      this.releaseWeapon(previouslyHeld, synth, xrManager);
+    }
+
+    weaponRecord.isGrabbed = true;
+    weaponRecord.heldBy = holder;
+    weaponRecord.heldIndex = holderIndex;
+    weaponRecord.isSwinging = false;
+    weaponRecord.swingProgress = 0;
+
+    if (weaponRecord.badgeMesh) weaponRecord.badgeMesh.visible = false;
+    if (weaponRecord.baseRing) weaponRecord.baseRing.visible = false;
+
+    holder.add(weaponRecord.group);
+
+    if (holderIndex === 'desktop') {
+      // First-person held weapon view in bottom-right of player viewport
+      weaponRecord.group.position.set(0.26, -0.22, -0.45);
+      weaponRecord.group.rotation.set(Math.PI / 4, -Math.PI / 6, Math.PI / 8);
+    } else {
+      // Natural grip orientation for VR 6DOF controller
+      if (weaponRecord.itemData.modelType === 'SHIELD') {
+        weaponRecord.group.position.set(0, 0, -0.1);
+        weaponRecord.group.rotation.set(0, 0, 0);
+      } else {
+        weaponRecord.group.position.set(0, -0.04, -0.16);
+        weaponRecord.group.rotation.set(Math.PI / 3, 0, 0);
+      }
+    }
+
+    weaponRecord.group.getWorldPosition(weaponRecord.lastPos);
+
+    if (synth && synth.playSwordDraw) {
+      synth.playSwordDraw();
+    }
+    if (xrManager && typeof holderIndex === 'number') {
+      xrManager.triggerHaptics(holderIndex, 0.8, 80);
+    }
+
+    return weaponRecord;
+  }
+
+  /**
+   * Release and return weapon to its display pedestal on the counter.
+   */
+  releaseWeapon(weaponTarget, synth = null, xrManager = null) {
+    const weaponRecord = weaponTarget?.userData?.weaponRecord || 
+      (weaponTarget?.group ? weaponTarget : this.weapons.find(w => w.group === weaponTarget || w.hitBox === weaponTarget));
+    if (!weaponRecord || !weaponRecord.isGrabbed) return;
+
+    this.shopGroup.add(weaponRecord.group);
+    weaponRecord.group.position.copy(weaponRecord.initialPos);
+    weaponRecord.group.rotation.copy(weaponRecord.initialRot);
+
+    if (weaponRecord.badgeMesh) weaponRecord.badgeMesh.visible = true;
+    if (weaponRecord.baseRing) weaponRecord.baseRing.visible = true;
+
+    weaponRecord.isGrabbed = false;
+    weaponRecord.heldBy = null;
+    weaponRecord.heldIndex = null;
+    weaponRecord.isSwinging = false;
+    weaponRecord.swingProgress = 0;
+
+    if (synth && synth.playSwordSwing) {
+      synth.playSwordSwing(1.3);
+    }
+  }
+
+  /**
+   * Get weapon currently held by holderIndex (0, 1, or 'desktop').
+   */
+  getHeldWeapon(holderIndex) {
+    return this.weapons.find(w => w.isGrabbed && w.heldIndex === holderIndex);
+  }
+
+  /**
+   * Trigger dynamic desktop swing / slash attack animation.
+   */
+  triggerDesktopSwing(synth = null) {
+    const held = this.getHeldWeapon('desktop');
+    if (!held || held.isSwinging) return false;
+
+    held.isSwinging = true;
+    held.swingProgress = 0;
+
+    if (synth && synth.playSwordSwing) {
+      synth.playSwordSwing(1.0 + (Math.random() - 0.5) * 0.25);
+    }
+    this.spawnWeaponTrail(held.group);
+    return true;
+  }
+
+  /**
+   * Spawn luminous weapon trail and sparks during high-velocity swing.
+   */
+  spawnWeaponTrail(weaponGroup) {
+    if (!weaponGroup) return;
+    const worldPos = new THREE.Vector3();
+    weaponGroup.getWorldPosition(worldPos);
+
+    const count = 10;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = worldPos.x + (Math.random() - 0.5) * 0.22;
+      positions[i * 3 + 1] = worldPos.y + (Math.random() - 0.5) * 0.22;
+      positions[i * 3 + 2] = worldPos.z + (Math.random() - 0.5) * 0.22;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xf3cf65,
+      size: 0.045,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending
+    });
+    const pSystem = new THREE.Points(geo, mat);
+    this.shopGroup.add(pSystem);
+    this.weaponTrails.push({ pSystem, life: 0.22 });
+  }
+
+  update(time, deltaTime = 0.016, xrManager = null, synth = null) {
     // 1. Update Volumetric Torch Flame Shaders
     this.flameMeshes.forEach(f => {
       if (f && f.update) {
@@ -801,15 +943,67 @@ export class GarthsShop {
       t.light.intensity = t.baseIntensity + (Math.sin(time * 8 + i * 2) * 0.4 + (Math.random() - 0.5) * 0.2);
     });
 
-    // 3. Garth Shopkeeper idle breathing
-    if (this.garthGroup) {
-      this.garthGroup.position.y = Math.sin(time * 2) * 0.015;
+    // 3. Update Animated Sprites (Garth NPC)
+    this.animatedUpdaters.forEach(fn => fn(time));
+
+    // 4. Update Grabbed / Held Weapons & Velocity Physics
+    const curPos = new THREE.Vector3();
+    this.weapons.forEach(weapon => {
+      if (!weapon.isGrabbed) return;
+
+      weapon.group.getWorldPosition(curPos);
+      const dist = curPos.distanceTo(weapon.lastPos);
+      const speed = deltaTime > 0 ? (dist / deltaTime) : 0;
+      weapon.lastPos.copy(curPos);
+
+      if (typeof weapon.heldIndex === 'number') {
+        // VR 6DOF Controller dynamic physics swing detection
+        if (speed > 1.6 && (time - weapon.lastSwingTime > 0.22)) {
+          weapon.lastSwingTime = time;
+          if (synth && synth.playSwordSwing) {
+            synth.playSwordSwing(Math.min(1.8, 0.85 + speed * 0.18));
+          }
+          if (xrManager) {
+            xrManager.triggerHaptics(weapon.heldIndex, Math.min(1.0, 0.4 + speed * 0.1), 60);
+          }
+          this.spawnWeaponTrail(weapon.group);
+        }
+      } else if (weapon.heldIndex === 'desktop') {
+        // Desktop Swing Animation
+        if (weapon.isSwinging) {
+          weapon.swingProgress += deltaTime * 4.8;
+          if (weapon.swingProgress >= 1.0) {
+            weapon.isSwinging = false;
+            weapon.swingProgress = 0;
+          }
+          const slashCurve = Math.sin(weapon.swingProgress * Math.PI);
+          weapon.group.position.set(0.26 - slashCurve * 0.16, -0.22 - slashCurve * 0.1, -0.45 - slashCurve * 0.14);
+          weapon.group.rotation.set(Math.PI / 4 + slashCurve * 0.95, -Math.PI / 6 - slashCurve * 0.6, Math.PI / 8 - slashCurve * 0.4);
+        } else {
+          // Subtle first-person idle sway
+          const idleSway = Math.sin(time * 2.5) * 0.006;
+          weapon.group.position.set(0.26, -0.22 + idleSway, -0.45);
+          weapon.group.rotation.set(Math.PI / 4 + idleSway * 0.4, -Math.PI / 6, Math.PI / 8);
+        }
+      }
+    });
+
+    // 5. Update and Fade Weapon Trail Particles
+    for (let i = this.weaponTrails.length - 1; i >= 0; i--) {
+      const trail = this.weaponTrails[i];
+      trail.life -= deltaTime;
+      if (trail.life <= 0) {
+        this.shopGroup.remove(trail.pSystem);
+        this.weaponTrails.splice(i, 1);
+      }
     }
 
-    // 4. Billboard weapon badges to face camera
+    // 6. Billboard weapon badges to face camera when not held
     if (this.camera) {
       this.weaponBadges.forEach(badge => {
-        badge.lookAt(this.camera.position);
+        if (badge.visible) {
+          badge.lookAt(this.camera.position);
+        }
       });
     }
   }
