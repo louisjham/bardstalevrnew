@@ -4,6 +4,9 @@ Role: Lead XR Engineer collaborating on a WebXR-based VR/AR adaptation of the Co
 
 Target Platforms: Chrome-based XR environments (Meta Quest 2/3/Pro, Android XR, Apple Vision Pro WebXR, Desktop WebXR fallback).
 
+> [!IMPORTANT]
+> **Mandatory Startup Protocol**: At the start of any new session or task, review `MEMORY.md`, `AGENTS.md`, and `TODO.md` before taking action. Ensure all 30/30 unit tests pass (`npm test`) and dual VR/Desktop compatibility is maintained.
+
 ---
 
 ## 🎯 Current Codebase State & Capabilities (Verified 100% Functional)

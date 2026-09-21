@@ -11,8 +11,9 @@ An immersive WebXR 3D VR experience bringing medieval bard legend to life! Playe
 - **Audio Engine**: Web Audio API (Spatial 3D Positional Audio, Procedural Bard Musical Instrument Synthesizer)
 - **Styling**: Modern dark fantasy UI, glowing runic HUD elements, glassmorphism overlays
 
-## 🚀 Key Directives
-1. **Always maintain WebXR + Desktop dual support**: Ensure the app works seamlessly in VR headsets and non-VR browsers.
-2. **Prioritize 3D Spatial Audio**: Sound is fundamental to a Bard game. Every note, spell, and ambient torch sound must use 3D positional audio.
-3. **High Aesthetic Standards**: Dynamic lighting, atmospheric fog, particle systems, tactile interactive 3D objects.
-4. **Adhere to AGENTS.md**: Follow all lead XR engineer guidelines specified in `AGENTS.md`.
+## 🚀 Key Directives & Startup Protocol
+1. **Mandatory Session Startup Protocol**: When beginning any new session or task, you MUST consult `MEMORY.md`, `AGENTS.md`, and `TODO.md` to ground your understanding of current state, architecture, and pending roadmap items.
+2. **Always maintain WebXR + Desktop dual support**: Ensure the app works seamlessly in VR headsets and non-VR browsers.
+3. **Prioritize 3D Spatial Audio**: Sound is fundamental to a Bard game. Every note, spell, and ambient torch sound must use 3D positional audio.
+4. **High Aesthetic Standards**: Dynamic lighting, atmospheric fog, particle systems, tactile interactive 3D objects.
+5. **Adhere to AGENTS.md**: Follow all lead XR engineer guidelines specified in `AGENTS.md`.
