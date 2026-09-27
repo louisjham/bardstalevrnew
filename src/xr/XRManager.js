@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { COLLISION_LAYER } from '../ui/spatial-hud/SpatialCollisionLayers.js';
 
 export class XRManager {
   /**
@@ -20,6 +21,9 @@ export class XRManager {
     this.orbitControls = null;
 
     this.raycaster = new THREE.Raycaster();
+    this.uiRaycaster = new THREE.Raycaster();
+    this.uiRaycaster.layers.set(COLLISION_LAYER.SPATIAL_UI);
+
     this.workingMatrix = new THREE.Matrix4();
     this.isVRActive = false;
 
@@ -120,12 +124,21 @@ export class XRManager {
     this.onSqueeze = null;
     this.onSqueezeStart = null;
 
+    // ── VR Mode Material Targets ───────────────────────────────────────────────
+    // Any object that implements setVRMode(bool) can register here.
+    // XRManager calls setVRMode(true) on sessionstart and setVRMode(false) on
+    // sessionend, allowing world modules (e.g. RetroRoom) to swap expensive
+    // ShaderMaterials for lightweight fallbacks while a headset is active.
+    this.vrModeTargets = [];
+
     // XR Session Start / End listeners
     this.renderer.xr.addEventListener('sessionstart', () => {
       this.isVRActive = true;
       if (this.orbitControls) this.orbitControls.enabled = false;
       const statusEl = document.getElementById('xr-status');
       if (statusEl) statusEl.textContent = '🟢 VR Session Active';
+      // Notify all registered VR-mode targets to swap to lightweight materials.
+      for (const target of this.vrModeTargets) target.setVRMode(true);
     });
 
     this.renderer.xr.addEventListener('sessionend', () => {
@@ -133,7 +146,24 @@ export class XRManager {
       if (this.orbitControls) this.orbitControls.enabled = true;
       const statusEl = document.getElementById('xr-status');
       if (statusEl) statusEl.textContent = 'WebXR Available';
+      // Restore full-quality materials for Desktop rendering.
+      for (const target of this.vrModeTargets) target.setVRMode(false);
     });
+  }
+
+  /**
+   * Register a world object to receive VR mode toggle notifications.
+   * The target must implement `setVRMode(isVR: boolean)`.
+   * Call this after the object is constructed (e.g. after `new RetroRoom(...)`).
+   *
+   * @param {{ setVRMode: (isVR: boolean) => void }} target
+   */
+  registerVRModeTarget(target) {
+    if (target && typeof target.setVRMode === 'function' && !this.vrModeTargets.includes(target)) {
+      this.vrModeTargets.push(target);
+      // If a VR session is already active when this is called, sync immediately.
+      if (this.isVRActive) target.setVRMode(true);
+    }
   }
 
   initDesktopFallback() {
@@ -162,6 +192,21 @@ export class XRManager {
     this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
     this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.workingMatrix).normalize();
     return this.raycaster;
+  }
+
+  // ⚡ Fast, dedicated UI raycaster restricted exclusively to COLLISION_LAYER.SPATIAL_UI
+  getControllerUIRaycaster(controller) {
+    this.workingMatrix.identity().extractRotation(controller.matrixWorld);
+    this.uiRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    this.uiRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.workingMatrix).normalize();
+    return this.uiRaycaster;
+  }
+
+  // Fast, non-recursive UI collision intersection test (avoids traversing complex meshes)
+  getControllerUIIntersections(controller, uiColliders) {
+    if (!uiColliders || uiColliders.length === 0) return [];
+    const ray = this.getControllerUIRaycaster(controller);
+    return ray.intersectObjects(uiColliders, false);
   }
 
   // Perform Raycasting from VR controller into interactive objects

@@ -17,6 +17,7 @@ import { CombatArena } from './world/combat-zone/CombatArena.js';
 import { PalmBookMenu } from './ui/spatial-hud/PalmBookMenu.js';
 import { GrimoireTutorialWindow } from './ui/spatial-hud/GrimoireTutorialWindow.js';
 import { SpatialInstructionWindow } from './ui/spatial-hud/SpatialInstructionWindow.js';
+import { COLLISION_LAYER } from './ui/spatial-hud/SpatialCollisionLayers.js';
 import { TAVERN_TUTORIAL_PATRONS } from './data/TavernTutorialData.js';
 import { PartyCreationUI } from './ui/PartyCreationUI.js';
 import { CharacterCardUI } from './ui/CharacterCardUI.js';
@@ -25,8 +26,9 @@ import { RoscoeUI } from './ui/RoscoeUI.js';
 import { ReviewBoardUI } from './ui/ReviewBoardUI.js';
 import { GameDirector } from './agents/game-director/GameDirector.js';
 import { createCharacter } from './data/RaceClassData.js';
-import { autoEquipParty } from './data/ItemDatabase.js';
+import { autoEquipParty, autoEquipCharacter } from './data/ItemDatabase.js';
 import { sourceToWorld, worldToSource } from './data/SkaraBraeMapData.js';
+import { EncounterGenerator } from './core/encounter/EncounterGenerator.js';
 
 class BardsTaleApp {
   constructor() {
@@ -59,6 +61,7 @@ class BardsTaleApp {
     // Game Director AI & State Machine
     this.gameDirector = new GameDirector();
     this.gameLoop = new GameLoop((newState) => this.handleStateTransition(newState));
+    this.pendingCombatEncounter = null;
 
     // Authentic Day / Night World Time Engine
     this.timeEngine = new WorldTimeEngine(
@@ -213,14 +216,26 @@ class BardsTaleApp {
       this.camera,
       () => this.gameLoop.setState(GameState.SKARA_BRAE_STREETS),
       this.gameLoop.party,
-      () => this.characterCardUI.show(this.gameLoop.party)
+      () => this.characterCardUI.show(this.gameLoop.party),
+      (msg) => this.showToast(msg)
     );
 
     // 4. Location 4: Dedicated 3D Spatial Combat Arena
-    this.combatArena = new CombatArena(this.scene, this.camera, (victory) => {
-      this.gameLoop.setState(GameState.TAVERN_INTRO);
-      this.showToast(victory ? "🏆 Returned to Tavern!" : "💀 Escaped Combat!");
-    });
+    this.combatArena = new CombatArena(
+      this.scene,
+      this.camera,
+      (victory) => {
+        this.gameLoop.setState(GameState.TAVERN_INTRO);
+        this.showToast(victory ? "🏆 Returned to Tavern!" : "💀 Escaped Combat!");
+      },
+      this.xrRig,
+      this.synth
+    );
+
+    // Wire references into PalmBookMenu Command Deck
+    this.grimoire.setXRReference(this.xrRig);
+    this.grimoire.setTimeEngine(this.timeEngine);
+    this.grimoire.setCombatEngine(this.combatArena.combatEngine);
 
     // Party Creation UI
     this.partyUI = new PartyCreationUI((party) => {
@@ -385,24 +400,32 @@ class BardsTaleApp {
       this.retroRoom.setVisible(true);
       this.grimoire.setEnabled(false);
       this.instructionWindow.hide();
-      this.retroRoom.startCinematicSequence(() => {
+      this.retroRoom.triggerFlashPaperIntro(() => {
         this.gameLoop.setState(GameState.TAVERN_INTRO);
       });
     } else if (newState === GameState.TAVERN_INTRO) {
+      this.pendingRecruits = [];
+      this.gameLoop.setParty([]);
       this.tavern.setVisible(true);
       this.grimoire.setEnabled(false);
       this.instructionWindow.hide();
       this.xrRig.setPosition(0, 0, 1.2);
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level with Bard/patrons (1.18m)
-      this.camera.rotation.z = 0; // Ensure roll is cleared
+      this.camera.rotation.set(0, 0, 0); // Ensure roll and rotation are cleared
       this.synth.init();
       this.singer.startSong();
+      this.fadeInFromBlack(500);
       this.tavern.playEntranceTransition();
-      this.showToast("🍺 Welcome to Skara Brae Tavern! Click Bard or Patrons for guides.");
+      this.showToast("🍺 Welcome to Skara Brae Tavern! Click Patrons to recruit your company (up to 6).");
     } else if (newState === GameState.GARTHS_SHOP) {
-      this.ensureStarterParty();
+      if ((!this.pendingRecruits || this.pendingRecruits.length === 0) && (!this.gameLoop.party || this.gameLoop.party.length === 0)) {
+        this.ensureStarterParty();
+      }
       this.singer.stopSong();
       this.garthsShop.setVisible(true);
+      if (this.garthsShop.updateRecruitBillboard) {
+        this.garthsShop.updateRecruitBillboard(this.pendingRecruits, (msg) => this.showToast(msg));
+      }
       this.grimoire.setEnabled(true);
       this.xrRig.setPosition(0, 0, 1.8);
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level (1.18m)
@@ -460,9 +483,104 @@ class BardsTaleApp {
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level (1.18m)
       this.camera.rotation.z = 0;
       const isNight = this.timeEngine ? this.timeEngine.isNight : false;
-      const monsters = this.gameDirector.generateEncounter(1, isNight);
+      const monsters = this.pendingCombatEncounter || EncounterGenerator.generateEncounter({ zone: 'streets', isNight });
+      this.pendingCombatEncounter = null;
       this.combatArena.enterCombat(this.gameLoop.party, monsters);
     }
+  }
+
+  fadeInFromBlack(duration = 500, onComplete = null) {
+    if (this.retroRoom) {
+      this.retroRoom.fadeInFromBlack(duration, onComplete);
+    } else if (onComplete) {
+      onComplete();
+    }
+  }
+
+  animateRecruitment(mesh) {
+    if (!mesh) return;
+    if (mesh.material && mesh.material.color && typeof mesh.material.color.setHex === 'function') {
+      mesh.material.color.setHex(0xffea00); // Tint Gold
+    } else if (typeof mesh.traverse === 'function') {
+      mesh.traverse(child => {
+        if (child.isMesh && child.material && child.material.color && typeof child.material.color.setHex === 'function' && child.material.visible !== false) {
+          child.material.color.setHex(0xffea00);
+        }
+      });
+    }
+    const animTarget = (mesh.parent && (mesh.parent.userData?.isPatron || mesh.parent.userData?.isBard)) ? mesh.parent : mesh;
+    if (!animTarget.position) return;
+    const startY = animTarget.position.y;
+    let t = 0;
+    const hop = setInterval(() => {
+      t += 0.1;
+      animTarget.position.y = startY + Math.sin(t * Math.PI) * 0.2;
+      if (t >= 1) {
+        animTarget.position.y = startY;
+        clearInterval(hop);
+      }
+    }, 16);
+  }
+
+  recruitPatron(targetObj) {
+    if (!targetObj) return;
+    if (!this.pendingRecruits) this.pendingRecruits = [];
+    if (this.pendingRecruits.length >= 6) {
+      this.showToast("🍻 Your recruitment company is full! (6/6)");
+      return;
+    }
+    const recruitName = targetObj.userData?.name || 'Stranger';
+    this.pendingRecruits.push(recruitName);
+    this.animateRecruitment(targetObj);
+
+    // Remove interaction box from raycaster so they cannot be clicked twice
+    if (targetObj.userData) {
+      targetObj.userData.isPatron = false;
+      targetObj.userData.isBard = false;
+    }
+    if (targetObj.parent && targetObj.parent.userData) {
+      targetObj.parent.userData.isPatron = false;
+      targetObj.parent.userData.isBard = false;
+    }
+    if (this.tavern && this.tavern.interactableObjects) {
+      this.tavern.interactableObjects = this.tavern.interactableObjects.filter(
+        item => item !== targetObj && item !== targetObj.parent && item.parent !== targetObj
+      );
+    }
+    this.synth.init();
+    this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
+    this.showToast(`🍻 ${recruitName} joins your company! (${this.pendingRecruits.length}/6)`);
+  }
+
+  bestowWeaponClass(weaponObj) {
+    if (!weaponObj) return false;
+    if (!this.pendingRecruits || this.pendingRecruits.length === 0) return false;
+    const wpn = (weaponObj.userData?.name || '').toLowerCase();
+    const recruit = this.pendingRecruits.shift();
+    let assignedClass = 'Warrior';
+    if (wpn.includes('lute')) {
+      assignedClass = 'Bard';
+    } else if (wpn.includes('staff')) {
+      assignedClass = 'Magician';
+    } else if (wpn.includes('dagger')) {
+      assignedClass = 'Rogue';
+    } else {
+      assignedClass = 'Warrior';
+    }
+    const hero = createCharacter(recruit, 'Human', assignedClass);
+    autoEquipCharacter(hero);
+    this.gameLoop.party.push(hero);
+    this.characterCardUI.setParty(this.gameLoop.party);
+    this.grimoire.updatePartyData(this.gameLoop.party);
+    this.syncParty(this.gameLoop.party);
+    if (this.garthsShop && this.garthsShop.updateRecruitBillboard) {
+      this.garthsShop.updateRecruitBillboard(this.pendingRecruits, (msg) => this.showToast(msg));
+    }
+    this.synth.init();
+    this.synth.playSequence(['D4', 'F#4', 'A4', 'D5'], 120);
+    const weaponName = weaponObj.userData?.name || 'weapon';
+    this.showToast(`⚔️ ${recruit} takes the ${weaponName} and becomes a ${assignedClass}!`);
+    return true;
   }
 
   bindEvents() {
@@ -494,6 +612,7 @@ class BardsTaleApp {
         if (e.code === 'Digit1') this.grimoire.setPage(1);
         else if (e.code === 'Digit2') this.grimoire.setPage(2);
         else if (e.code === 'Digit3') this.grimoire.setPage(3);
+        else if (e.code === 'Digit4') this.grimoire.setPage(4);
       }
     });
 
@@ -501,9 +620,10 @@ class BardsTaleApp {
     const handleInteraction = (raycaster, controllerIndex = null, isGrip = false) => {
       if (!raycaster) return;
 
-      // Check Spatial Instruction Glassmorphism Window touch/clicks if active
-      if (this.instructionWindow && this.instructionWindow.active && this.instructionWindow.mesh) {
-        const instIntersects = raycaster.intersectObject(this.instructionWindow.mesh);
+      // ⚡ Check Spatial Instruction Glassmorphism Window touch/clicks using low-poly primitive collider
+      if (this.instructionWindow && this.instructionWindow.active) {
+        const instTarget = this.instructionWindow.interactionCollider || this.instructionWindow.mesh;
+        const instIntersects = raycaster.intersectObject(instTarget, false);
         if (instIntersects.length > 0) {
           const hit = instIntersects[0];
           if (hit.uv) {
@@ -516,9 +636,10 @@ class BardsTaleApp {
         }
       }
 
-      // Check Grimoire Canvas Touch Clicks if open
+      // ⚡ Check Grimoire Canvas Touch Clicks using low-poly primitive collider (layer = SPATIAL_UI)
       if (this.grimoire.isOpen) {
-        const bookIntersects = raycaster.intersectObject(this.grimoire.textMesh);
+        const bookTarget = this.grimoire.getInteractionCollider();
+        const bookIntersects = raycaster.intersectObject(bookTarget, false);
         if (bookIntersects.length > 0) {
           if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.6, 80);
           this.grimoire.handleCanvasClick(bookIntersects[0].uv, (msg) => this.showToast(msg));
@@ -587,6 +708,10 @@ class BardsTaleApp {
             this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
             this.showToast("🛡️ Garth: \"Assemble your company, brave traveler!\"");
           } else if (obj && obj.userData.isWeapon) {
+            if (this.pendingRecruits && this.pendingRecruits.length > 0) {
+              this.bestowWeaponClass(obj);
+              return;
+            }
             const holder = controllerIndex !== null ? (this.xr.controllerGrips[controllerIndex] || this.xr.controllers[controllerIndex]) : this.camera;
             const holderIdx = controllerIndex !== null ? controllerIndex : 'desktop';
             const held = this.garthsShop.getHeldWeapon(holderIdx);
@@ -668,6 +793,21 @@ class BardsTaleApp {
           }
         }
       } else if (state === GameState.COMBAT_ZONE) {
+        // 1. Raycast against Monster Billboards (targeting mode or direct attack)
+        const monsterIntersects = raycaster.intersectObjects(this.combatArena.interactableMonsters, true);
+        if (monsterIntersects.length > 0) {
+          let mesh = monsterIntersects[0].object;
+          while (mesh && !mesh.userData.isMonsterMesh && mesh.parent) {
+            mesh = mesh.parent;
+          }
+          if (mesh && mesh.userData.isMonsterMesh) {
+            if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.8, 120);
+            this.combatArena.handleMonsterClick(mesh, this.synth, (i, int, d) => this.xr.triggerHaptics(i, int, d));
+            return;
+          }
+        }
+
+        // 2. Raycast against Hero Models (formation swapping)
         const heroIntersects = raycaster.intersectObjects(this.combatArena.interactableHeroes, true);
         if (heroIntersects.length > 0) {
           let mesh = heroIntersects[0].object;
@@ -681,11 +821,12 @@ class BardsTaleApp {
           }
         }
 
+        // 3. Raycast against Combat Command & Blitz Buttons
         const btnIntersects = raycaster.intersectObjects(this.combatArena.interactableButtons, true);
         if (btnIntersects.length > 0) {
           if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.8, 120);
           const action = btnIntersects[0].object.userData.action;
-          this.combatArena.executeCommand(action, this.synth, (i, int, d) => this.xr.triggerHaptics(i, int, d));
+          this.combatArena.handleButtonClick(action, this.synth, (i, int, d) => this.xr.triggerHaptics(i, int, d));
         }
       } else if (state === GameState.TAVERN_INTRO) {
         // First check if clicking inside 3D dialogue window
@@ -719,18 +860,7 @@ class BardsTaleApp {
               this.tavern.handleDialogueClick(hit.uv);
             }
           } else if (obj && (obj.userData.isPatron || obj.userData.isBard)) {
-            const key = obj.userData.patronKey || 'bard';
-            const patronData = TAVERN_TUTORIAL_PATRONS[key];
-            if (patronData) {
-              const headPos = new THREE.Vector3();
-              const headQuat = new THREE.Quaternion();
-              this.camera.getWorldPosition(headPos);
-              this.camera.getWorldQuaternion(headQuat);
-              this.instructionWindow.show(patronData, headPos, headQuat);
-              this.synth.init();
-              this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
-              this.showToast(`📜 ${patronData.name}: "${patronData.greeting}"`);
-            }
+            this.recruitPatron(obj);
           } else if (obj && obj.userData.isDoor) {
             this.gameLoop.setState(GameState.GARTHS_SHOP);
           } else if (obj && obj.userData.isAleMug) {
@@ -882,9 +1012,10 @@ class BardsTaleApp {
     this.focusedTarget = null;
     let promptText = '';
 
-    // If Grimoire is open, raycast into book canvas
-    if (this.grimoire.isOpen && this.grimoire.textMesh) {
-      const bookIntersects = this.centerRaycaster.intersectObject(this.grimoire.textMesh);
+    // ⚡ If Grimoire is open, raycast into low-poly primitive collision plane
+    if (this.grimoire.isOpen) {
+      const bookTarget = this.grimoire.getInteractionCollider();
+      const bookIntersects = this.centerRaycaster.intersectObject(bookTarget, false);
       if (bookIntersects.length > 0) {
         this.focusedTarget = { type: 'GRIMOIRE', uv: bookIntersects[0].uv };
         promptText = '📖 [A] Select / Test';
@@ -917,7 +1048,11 @@ class BardsTaleApp {
           } else if (obj && obj.userData.isWeapon) {
             const name = obj.userData.name || 'Weapon';
             this.focusedTarget = { type: 'GARTH_WEAPON', object: obj };
-            promptText = `⚔️ [A] Equip ${name}`;
+            if (this.pendingRecruits && this.pendingRecruits.length > 0) {
+              promptText = `⚔️ [A] Bestow ${name} on ${this.pendingRecruits[0]}`;
+            } else {
+              promptText = `⚔️ [A] Equip ${name}`;
+            }
           } else if (obj && obj.userData.isAutoEquipParty) {
             this.focusedTarget = { type: 'GARTH_AUTO_EQUIP', object: obj };
             promptText = '🛡️ [A] Auto-Equip Entire Party';
@@ -961,17 +1096,36 @@ class BardsTaleApp {
         if (btnIntersects.length > 0) {
           const btn = btnIntersects[0].object;
           this.focusedTarget = { type: 'COMBAT_BUTTON', object: btn, action: btn.userData.action };
-          promptText = `⚔️ [A] ${btn.userData.action}`;
+          if (btn.userData.action === 'BLITZ') {
+            promptText = "⚡ [A] Blitz (Auto-Win)";
+          } else if (this.combatArena.isTargetingMode && btn.userData.action === this.combatArena.pendingTargetAction) {
+            promptText = "❌ [A] Cancel Targeting";
+          } else {
+            promptText = `⚔️ [A] ${btn.userData.action}`;
+          }
         } else {
-          const heroIntersects = this.centerRaycaster.intersectObjects(this.combatArena.interactableHeroes, true);
-          if (heroIntersects.length > 0) {
-            let mesh = heroIntersects[0].object;
-            while (mesh && !mesh.userData.isHeroMesh && mesh.parent) {
+          const monsterIntersects = this.centerRaycaster.intersectObjects(this.combatArena.interactableMonsters, true);
+          if (monsterIntersects.length > 0) {
+            let mesh = monsterIntersects[0].object;
+            while (mesh && !mesh.userData.isMonsterMesh && mesh.parent) {
               mesh = mesh.parent;
             }
-            if (mesh && mesh.userData.isHeroMesh) {
-              this.focusedTarget = { type: 'COMBAT_HERO', mesh };
-              promptText = `🔄 [A] Swap ${mesh.userData.heroData?.name || 'Hero'}`;
+            if (mesh && mesh.userData.isMonsterMesh) {
+              this.focusedTarget = { type: 'COMBAT_MONSTER', mesh };
+              const mName = mesh.userData.monsterData?.name || 'Foe';
+              promptText = this.combatArena.isTargetingMode ? `🎯 [A] Target ${mName}` : `⚔️ [A] Attack ${mName}`;
+            }
+          } else {
+            const heroIntersects = this.centerRaycaster.intersectObjects(this.combatArena.interactableHeroes, true);
+            if (heroIntersects.length > 0) {
+              let mesh = heroIntersects[0].object;
+              while (mesh && !mesh.userData.isHeroMesh && mesh.parent) {
+                mesh = mesh.parent;
+              }
+              if (mesh && mesh.userData.isHeroMesh) {
+                this.focusedTarget = { type: 'COMBAT_HERO', mesh };
+                promptText = `🔄 [A] Swap ${mesh.userData.heroData?.name || 'Hero'}`;
+              }
             }
           }
         }
@@ -988,10 +1142,12 @@ class BardsTaleApp {
             promptText = '📜 [A] Click Dialogue Button';
           } else if (obj && obj.userData.isPatron) {
             this.focusedTarget = { type: 'TAVERN_PATRON', object: obj, patronKey: obj.userData.patronKey };
-            promptText = `📜 [A] Talk to ${obj.userData.name} (Game Guide)`;
+            const count = this.pendingRecruits ? this.pendingRecruits.length : 0;
+            promptText = `🍻 [A] Recruit ${obj.userData.name || 'Patron'} (${count}/6)`;
           } else if (obj && obj.userData.isBard) {
             this.focusedTarget = { type: 'TAVERN_BARD', object: obj };
-            promptText = '🎵 [A] Talk to Bard (Songs & Party)';
+            const count = this.pendingRecruits ? this.pendingRecruits.length : 0;
+            promptText = `🍻 [A] Recruit The Scarlet Bard (${count}/6)`;
           } else if (obj && obj.userData.isDoor) {
             this.focusedTarget = { type: 'TAVERN_DOOR', object: obj };
             promptText = "🚪 [A] Enter Garth's Shop";
@@ -1037,18 +1193,7 @@ class BardsTaleApp {
         this.gamepad.vibrate(0.4, 150);
       }
     } else if (target.type === 'TAVERN_PATRON' || target.type === 'TAVERN_BARD') {
-      const key = target.patronKey || (target.type === 'TAVERN_BARD' ? 'bard' : 'wizard');
-      const patronData = TAVERN_TUTORIAL_PATRONS[key];
-      if (patronData) {
-        const headPos = new THREE.Vector3();
-        const headQuat = new THREE.Quaternion();
-        this.camera.getWorldPosition(headPos);
-        this.camera.getWorldQuaternion(headQuat);
-        this.instructionWindow.show(patronData, headPos, headQuat);
-        this.synth.init();
-        this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 120);
-        this.showToast(`📜 ${patronData.name}: "${patronData.greeting}"`);
-      }
+      this.recruitPatron(target.object);
       this.gamepad.vibrate(0.4, 100);
     } else if (target.type === 'TAVERN_DIALOGUE') {
       if (target.hit && target.hit.uv) {
@@ -1088,7 +1233,11 @@ class BardsTaleApp {
       this.gamepad.vibrate(0.4, 100);
     } else if (target.type === 'GARTH_WEAPON') {
       const obj = target.object;
-      this.garthsShop.equipItem(obj.userData.itemData || obj.userData.name, (msg) => this.showToast(msg));
+      if (this.pendingRecruits && this.pendingRecruits.length > 0) {
+        this.bestowWeaponClass(obj);
+      } else {
+        this.garthsShop.equipItem(obj.userData.itemData || obj.userData.name, (msg) => this.showToast(msg));
+      }
       this.gamepad.vibrate(0.5, 120);
     } else if (target.type === 'GARTH_AUTO_EQUIP') {
       this.garthsShop.autoEquipEntireParty((msg) => this.showToast(msg));
@@ -1132,7 +1281,10 @@ class BardsTaleApp {
     } else if (target.type === 'STREET_ROSCOE_DOOR') {
       this.roscoeUI.show(this.gameLoop.party);
     } else if (target.type === 'COMBAT_BUTTON') {
-      this.combatArena.executeCommand(target.action, this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
+      this.combatArena.handleButtonClick(target.action, this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
+    } else if (target.type === 'COMBAT_MONSTER') {
+      this.combatArena.handleMonsterClick(target.mesh, this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
+      this.gamepad.vibrate(0.4, 100);
     } else if (target.type === 'COMBAT_HERO') {
       this.combatArena.handleHeroSwapClick(target.mesh, (msg) => this.showToast(msg));
       this.gamepad.vibrate(0.3, 80);
@@ -1170,7 +1322,7 @@ class BardsTaleApp {
         this.executeTargetInteraction(this.focusedTarget);
       } else if (this.gameLoop.currentState === GameState.COMBAT_ZONE) {
         const action = this.combatArena.getSelectedAction();
-        this.combatArena.executeCommand(action, this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
+        this.combatArena.handleButtonClick(action, this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
       } else if (this.gameLoop.currentState === GameState.RETRO_ROOM && !this.retroRoom.isDiskInserted) {
         this.retroRoom.insertFloppyDisk();
         this.showToast("💾 Sliding Floppy Disk into 1541 Drive...");
@@ -1332,8 +1484,8 @@ class BardsTaleApp {
         this.retroRoom.update(time, deltaTime);
       }
 
-      // Smooth fade-from-black transition when entering Tavern
-      if (this.retroRoom && this.retroRoom.screenOverlay && this.retroRoom.screenOverlay.material.opacity > 0) {
+      // Smooth fade-from-black transition fallback
+      if (this.retroRoom && this.retroRoom.screenOverlay && !this.retroRoom.isFadingIn && this.retroRoom.screenOverlay.material.opacity > 0) {
         this.retroRoom.screenOverlay.material.opacity = Math.max(0, this.retroRoom.screenOverlay.material.opacity - deltaTime * 0.9);
       }
 
@@ -1354,18 +1506,17 @@ class BardsTaleApp {
 
         // Quest 2 Touch Controller Polling (Door Highlight & Grimoire Toggle)
         if (xrSession && xrSession.inputSources) {
-          // Check Tavern Door Hover in VR (Highlight when controller points directly at door)
+          // ⚡ Check Tavern Door Hover in VR (Highlight when controller points directly at low-poly door collider)
           if (this.gameLoop.currentState === GameState.TAVERN_INTRO) {
             let isRayOnDoor = false;
+            const doorTarget = this.tavern.doorCollider || this.tavern.exitDoorMesh;
 
-            for (let cIdx = 0; cIdx < 2; cIdx++) {
-              if (this.xr.controllers[cIdx]) {
-                const ray = this.xr.getControllerRaycaster(this.xr.controllers[cIdx]);
-                const hits = ray.intersectObjects(this.tavern.interactableObjects, true);
-                if (hits.length > 0) {
-                  let topHit = hits[0].object;
-                  while (topHit && !topHit.userData.isDoor && topHit.parent) topHit = topHit.parent;
-                  if (topHit && topHit.userData.isDoor) {
+            if (doorTarget) {
+              for (let cIdx = 0; cIdx < 2; cIdx++) {
+                if (this.xr.controllers[cIdx]) {
+                  const ray = this.xr.getControllerRaycaster(this.xr.controllers[cIdx]);
+                  const hits = ray.intersectObject(doorTarget, false);
+                  if (hits.length > 0) {
                     isRayOnDoor = true;
                     break;
                   }
@@ -1448,6 +1599,24 @@ class BardsTaleApp {
         this.streetScene.update(deltaTime);
         const headPos = this.xrRig.getWorldHeadPosition();
         this.skaraBraeGrid.revealTile(headPos.x, headPos.z);
+
+        // Step Transition: 1985-Accurate Encounter Evaluation
+        const step = this.skaraBraeGrid.checkStepTransition(headPos.x, headPos.z);
+        if (step.stepped && step.isWalkable) {
+          const isNight = !!(this.timeEngine && this.timeEngine.isNight);
+          const encounter = EncounterGenerator.evaluateStep('streets', step.x, step.y, isNight);
+          if (encounter && encounter.length > 0) {
+            this.locomotion.halt();
+            if (this.grimoire && this.grimoire.isOpen) {
+              this.grimoire.toggleBookDesktop(false);
+            }
+            this.pendingCombatEncounter = encounter;
+            const enemySummary = encounter.map(g => `${g.quantity} ${g.name}`).join(', ');
+            this.showToast(`⚔️ Encounter! ${enemySummary} draw near!`);
+            this.gameLoop.setState(GameState.COMBAT_ZONE);
+            return;
+          }
+        }
 
         // Step-on Teleporter check
         if (!this._tpCooldown) {

@@ -3,6 +3,7 @@ import { TextureGenerator } from '../textures/TextureGenerator.js';
 import { TorchFlameShader } from '../shaders/TorchFlameShader.js';
 import { AnimatedSpriteManager } from '../textures/AnimatedSprite.js';
 import { TAVERN_TUTORIAL_PATRONS } from '../data/TavernTutorialData.js';
+import { COLLISION_LAYER } from '../ui/spatial-hud/SpatialCollisionLayers.js';
 
 export class FullVRTavern {
   constructor(scene, onBardSelected, onDoorSelected) {
@@ -143,9 +144,25 @@ export class FullVRTavern {
   }
 
   initLightingAndChandelier() {
-    // Warm Tavern Ambient
-    const ambientLight = new THREE.AmbientLight(0x451a03, 1.5);
-    this.tavernGroup.add(ambientLight);
+    // ── Baked Global Illumination Substitute ──────────────────────────────────
+    // A HemisphereLight is evaluated in a single GPU pass (it's just two
+    // directional gradient inputs baked into the GGX BRDF).  It replaces the
+    // old AmbientLight and eliminates the "flat" look without requiring any
+    // additional shadow or per-fragment light evaluation.
+    //
+    // ⚡ WebXR Budget note: Every PointLight costs O(mesh_count × fragment_count)
+    // per eye per frame.  12 flickering PointLights across the tavern was the
+    // single largest frame-time sink.  We now run with:
+    //   • 1 HemisphereLight  — zero fragment cost (baked into vertex shader)
+    //   • 1 hero PointLight  (chandelier, radius 14)  — keeps full-tavern flicker
+    //   • 1 hero PointLight  (fireplace, radius 12)   — kept in initFireplace()
+    //   All 10 removed PointLights are replaced with emissive glow on nearby meshes.
+    const hemiLight = new THREE.HemisphereLight(
+      0x6b3a1f,  // Sky colour: warm amber (torchlit ceiling)
+      0x1a0d05,  // Ground colour: dark ember shadow floor
+      1.8        // Intensity — replaces old AmbientLight(0x451a03, 1.5)
+    );
+    this.tavernGroup.add(hemiLight);
 
     // Hanging Iron Wagon-Wheel Chandelier
     const chandelierGroup = new THREE.Group();
@@ -169,12 +186,20 @@ export class FullVRTavern {
       chandelierGroup.add(chain);
     }
 
-    // 8 Chandelier Candles with Volumetric Flame Shaders & Warm Point Light
+    // 8 Chandelier Candles with Volumetric Flame Shaders
+    // The candle wax mesh now has emissive glow to fake local warmth —
+    // no per-candle PointLight needed.
+    const candleEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0xfef08a,
+      roughness: 0.3,
+      emissive: 0xf97316,
+      emissiveIntensity: 0.6  // Baked warm glow — zero fragment cost vs PointLight
+    });
     for (let c = 0; c < 8; c++) {
       const cAngle = (c * Math.PI) / 4;
       const candle = new THREE.Mesh(
         new THREE.CylinderGeometry(0.03, 0.03, 0.15),
-        new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.3 })
+        candleEmissiveMat
       );
       candle.position.set(Math.cos(cAngle) * 1.4, 0.1, Math.sin(cAngle) * 1.4);
       chandelierGroup.add(candle);
@@ -186,53 +211,67 @@ export class FullVRTavern {
       this.flameMeshes.push(cFlame);
     }
 
+    // Single hero PointLight on the chandelier — covers the entire tavern (radius 14).
+    // This is the only real-time PointLight in the upper lighting rig; its flicker
+    // gives the illusion that all 8 candles and all 6 wall sconces are alive.
     const chandelierLight = new THREE.PointLight(0xf59e0b, 3.5, 14);
     chandelierLight.position.set(0, 0.2, 0);
     chandelierGroup.add(chandelierLight);
-    this.torches.push({ light: chandelierLight, baseIntensity: 3.5, idx: 1 });
+    // Stored for the simplified flicker update in update().
+    this.heroLights = [{ light: chandelierLight, baseIntensity: 3.5, phase: 1.0 }];
 
     this.tavernGroup.add(chandelierGroup);
 
     // Wall Sconces with Volumetric GLSL Smoky Torches
+    // PointLights REMOVED from each sconce — the chandelier hero light and
+    // the emissive torch-head materials provide all necessary warmth cues.
     const torchPositions = [
       { pos: [-7.8, 2.8, -4.0], rotY: Math.PI / 2 },
-      { pos: [-7.8, 2.8, 3.5], rotY: Math.PI / 2 },
-      { pos: [7.8, 2.8, -4.0], rotY: -Math.PI / 2 },
-      { pos: [7.8, 2.8, 3.5], rotY: -Math.PI / 2 },
+      { pos: [-7.8, 2.8,  3.5], rotY: Math.PI / 2 },
+      { pos: [ 7.8, 2.8, -4.0], rotY: -Math.PI / 2 },
+      { pos: [ 7.8, 2.8,  3.5], rotY: -Math.PI / 2 },
       { pos: [-3.5, 2.8, -6.8], rotY: 0 },
-      { pos: [3.5, 2.8, -6.8], rotY: 0 }
+      { pos: [ 3.5, 2.8, -6.8], rotY: 0 }
     ];
 
-    torchPositions.forEach((cfg, idx) => {
+    // Shared emissive material for all torch heads — baked orange glow.
+    const torchHeadMat = new THREE.MeshStandardMaterial({
+      color: 0x451a03,
+      roughness: 0.9,
+      emissive: 0xf97316,
+      emissiveIntensity: 1.2   // Strong emissive simulates local warmth; zero GPU light eval
+    });
+
+    torchPositions.forEach((cfg) => {
       const torchGroup = new THREE.Group();
       torchGroup.position.set(...cfg.pos);
       torchGroup.rotation.y = cfg.rotY;
 
-      // Iron Bracket & Wooden Torch
+      // Iron Bracket
       const bracket = new THREE.Mesh(
         new THREE.BoxGeometry(0.08, 0.35, 0.18),
         new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 })
       );
       torchGroup.add(bracket);
 
+      // Wooden Torch Shaft with emissive head — replaces PointLight for local warmth
       const torchWood = new THREE.Mesh(
         new THREE.CylinderGeometry(0.04, 0.03, 0.35),
-        new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 })
+        torchHeadMat
       );
       torchWood.position.set(0, 0.15, 0.12);
       torchWood.rotation.x = Math.PI / 8;
       torchGroup.add(torchWood);
 
+      // Volumetric GLSL Flame Shader (visual only — no light emitted from here)
       const tFlame = TorchFlameShader.createFlameMesh('fire');
       tFlame.scale.set(1.0, 1.0, 1.0);
       tFlame.position.set(0, 0.30, 0.15);
       torchGroup.add(tFlame);
       this.flameMeshes.push(tFlame);
 
-      const tLight = new THREE.PointLight(0xf59e0b, 2.8, 9.0);
-      tLight.position.set(0, 0.34, 0.18);
-      torchGroup.add(tLight);
-      this.torches.push({ light: tLight, baseIntensity: 2.8, idx: idx + 2 });
+      // ⚡ No PointLight added here — removed 6 PointLights vs original.
+      //    Warmth cue = emissive torchHeadMat + chandelier hero PointLight flicker.
 
       // Rising Smoke Particles
       for (let s = 0; s < 4; s++) {
@@ -253,18 +292,22 @@ export class FullVRTavern {
     // Elevated Heavy Oak Stage (Front Center)
     const stageGeo = new THREE.BoxGeometry(5.0, 0.45, 3.2);
     const woodTex = TextureGenerator.createWoodPlankTexture();
-    const stageMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.55 });
+    // ⚡ Stage emissive glow replaces the old SpotLight(0xfde68a, 4.2, 14).
+    // SpotLights require a full shadow frustum calculation + per-fragment
+    // evaluation over the entire lit area — the most expensive single light
+    // in the scene.  A subtle emissive tint on the stage mesh costs nothing
+    // at runtime and reads as "warmly lit" under the HemisphereLight.
+    const stageMat = new THREE.MeshStandardMaterial({
+      map: woodTex,
+      roughness: 0.55,
+      emissive: 0x2a1000,
+      emissiveIntensity: 0.4
+    });
     const stage = new THREE.Mesh(stageGeo, stageMat);
     stage.position.set(0, 0.225, -4.8);
     stage.receiveShadow = true;
     stage.castShadow = true;
     this.tavernGroup.add(stage);
-
-    // Warm Spotlight on Stage
-    const stageLight = new THREE.SpotLight(0xfde68a, 4.2, 14, Math.PI / 3.5, 0.3);
-    stageLight.position.set(0, 4.8, -2.5);
-    stageLight.target = stage;
-    this.tavernGroup.add(stageLight);
 
     // 1985 Animated Bard Billboard on Stage with Interactive Hitbox
     const bardGroup = new THREE.Group();
@@ -442,12 +485,19 @@ export class FullVRTavern {
       this.interactableObjects.push(mugHitBox, mugGroup);
 
       // 4. Magical Multi-Colored Candle on Table
+      // ⚡ PointLight removed — emissive candle wax provides local warmth cue at
+      //    zero GPU fragment cost.  TorchFlameShader visual is unchanged.
       const candleColors = ['fire', 'blue', 'fire', 'violet'];
-      const lightColors = [0xffaa33, 0x38bdf8, 0xffaa33, 0xc084fc];
+      const candleEmissives = [0xf97316, 0x38bdf8, 0xf97316, 0xc084fc];
 
       const candle = new THREE.Mesh(
         new THREE.CylinderGeometry(0.025, 0.03, 0.12, 12),
-        new THREE.MeshStandardMaterial({ color: 0xfef9c3, roughness: 0.4 })
+        new THREE.MeshStandardMaterial({
+          color: 0xfef9c3,
+          roughness: 0.4,
+          emissive: candleEmissives[idx],
+          emissiveIntensity: 0.55  // Tinted emissive per candle colour, no PointLight needed
+        })
       );
       candle.position.set(cfg.pos[0] - 0.35, 0.87, cfg.pos[2]);
       this.tavernGroup.add(candle);
@@ -457,11 +507,6 @@ export class FullVRTavern {
       tableFlame.position.set(cfg.pos[0] - 0.35, 0.93, cfg.pos[2]);
       this.tavernGroup.add(tableFlame);
       this.flameMeshes.push(tableFlame);
-
-      const cLight = new THREE.PointLight(lightColors[idx], 1.4, 4.5);
-      cLight.position.set(cfg.pos[0] - 0.35, 0.96, cfg.pos[2]);
-      this.tavernGroup.add(cLight);
-      this.torches.push({ light: cLight, baseIntensity: 1.4, idx: 20 + idx });
 
       // 5. Seated Animated 1985 Sprite Patron + Interactive Hitbox (Replacing low-poly 3D models)
       const patronGroup = new THREE.Group();
@@ -904,10 +949,12 @@ export class FullVRTavern {
     );
     doorCollider.position.y = 1.6;
     doorCollider.userData = { isDoor: true, action: 'exitGame' };
+    doorCollider.layers.set(COLLISION_LAYER.INTERACTABLES);
     doorGroup.add(doorCollider);
 
     doorGroup.userData = { isDoor: true, action: 'exitGame' };
     this.exitDoorMesh = doorGroup;
+    this.doorCollider = doorCollider;
     this.tavernGroup.add(doorGroup);
     this.interactableObjects.push(doorCollider, doorFrame, strapTop, strapBottom, handle, sign, doorGroup);
   }
@@ -968,11 +1015,13 @@ export class FullVRTavern {
     fireplace.add(fireCore);
     this.flameMeshes.push(fireCore);
 
-    // Fireplace Point Light
+    // Fireplace Point Light — the second and final hero PointLight.
+    // Kept because the fireplace is the primary anchor of the left-wall atmosphere;
+    // its flicker (via heroLights in update()) drives the entire room's perceived warmth.
     const fireLight = new THREE.PointLight(0xff5500, 4.5, 12);
     fireLight.position.set(0, 0.6, 0.6);
     fireplace.add(fireLight);
-    this.torches.push({ light: fireLight, baseIntensity: 4.5, idx: 99 });
+    this.heroLights.push({ light: fireLight, baseIntensity: 4.5, phase: 2.7 });
 
     this.tavernGroup.add(fireplace);
   }
@@ -1089,10 +1138,17 @@ export class FullVRTavern {
       }
     });
 
-    // 2. Torch & Fireplace Flickering
-    this.torches.forEach(t => {
-      t.light.intensity = t.baseIntensity + Math.sin(time * 12 + t.idx) * 0.45 + Math.cos(time * 8) * 0.25;
-    });
+    // 2. Hero Light Flicker — only 2 real-time PointLights remain in the scene
+    //    (chandelier + fireplace).  Each uses an independent phase offset so they
+    //    flicker differently, preserving the illusion of many independent sources.
+    //    ⚡ This replaces the old loop that updated 12 lights every frame.
+    if (this.heroLights) {
+      for (const h of this.heroLights) {
+        h.light.intensity = h.baseIntensity
+          + Math.sin(time * 12.0 + h.phase) * 0.45
+          + Math.cos(time *  8.0 + h.phase * 0.5) * 0.25;
+      }
+    }
 
     // 3. Rising Smoke Particles
     this.smokeParticles.forEach(p => {

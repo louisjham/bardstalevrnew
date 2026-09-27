@@ -9,34 +9,72 @@ This file serves as persistent memory between agent sessions. Any agent starting
 The Bard's Tale VR is a WebXR + Three.js immersive VR/Desktop adaptation of the 1985 CRPG *The Bard's Tale*.
 
 ### 🕹️ 5-Location Game Loop (`src/core/game-loop/GameLoop.js`)
-1. **1980s Retro C64 Desk (`src/world/retro-room/RetroRoom.js`)**:
-   - 3D Commodore 64, 1541 floppy drive with LED, 5¼" floppy disk load animation, CRT barrel/scanline shader (`CRTMonitorShader.js`), and swirling vortex portal with a 360° perspective roll transition into the game.
+1. **1980s Retro C64 Desk & Stationary Dark Void Flare (`src/world/retro-room/RetroRoom.js`)**:
+   - 3D Commodore 64, 1541 floppy drive with LED, CRT barrel/scanline shader (`CRTMonitorShader.js`).
+   - **Stationary Flash-Paper Intro**: Zero camera interpolation/auto-walk to eliminate WebXR motion sickness. Spawns player stationary in a dark void facing a radiant golden "The Bard's Tale" title card and flaring vortex particle burst (~2500ms).
+   - Tweens camera screen-space black UI plane to opacity 1.0 (Fade to Black), teleports player directly to stationary fixed Tavern bar position (eye height preserved at 1.18m), followed by a 500ms rapid fade-in-from-black right before the Tavern entrance transition.
 2. **Skara Brae Tavern (`src/world/FullVRTavern.js`)**:
    - 1985 authentic animated sprite billboards (`AnimatedSprite.js`) for the 4 seated patrons (*Paladin, Wizard, Dwarf, Hobbit*) and the Bard on stage.
+   - **Tactile Tavern Raycast Recruitment**: Replaced static tavern dialogue with direct raycast recruitment of seated patrons and the Bard. Recruits hop 0.2m with gold tint (`0xffea00`), colliders are removed from raycaster to prevent duplicates, and recruits queue into `pendingRecruits` (up to 6 heroes).
    - Live procedural lute & singing voice (`BardSynth.js`, `BardSinger.js`) with 3D floating lyric bubbles.
-   - Interactive Spatial UI guide windows (`SpatialInstructionWindow.js`) on clicking any patron explaining CRPG game rules (Spells, Combat/Death, Items/Traps, Races/Attributes, Bard Songs).
    - Quest 2/3 Touch controller door interaction (any button press enters Skara Brae / Garth's Shop).
 3. **Garth's Weapons & Wonders (`src/world/garths-shop/GarthsShop.js`)**:
    - 1985 animated Garth sprite billboard behind the counter.
-   - Tapping Garth opens the party creation dialog (`[🎲 Create New Party]` or `[⚔️ Use Starter Party (6)]`).
-   - Every created hero automatically starts with full starter weapons and armor kit (`autoEquipCharacter`).
+   - **Recruit Roster Display Billboard**: 2.0×2.0 4-frame animated sprite billboard (`bt1_01.png`) positioned physically behind Garth's counter at `(1.4, 1.35, -3.1)` with 3D text banner showing `"Next Up: [Name]"` and queue count. Automatically hides and triggers celebration toast when party is complete.
+   - **Physical Weapon Class Bestowal**:
+     - *Bard Lute* ➔ **Bard**
+     - *Oak Staff* ➔ **Magician**
+     - *Dagger* ➔ **Rogue**
+     - *Broadsword / Battleaxe / Warhammer* ➔ **Warrior**
+   - Automatically equips starter gear (`autoEquipCharacter`) and syncs party across HUD/Grimoire.
    - Physical 3D weapons on counter pedestals with 6DOF VR Grip grab and Desktop click/`[G]`/`[E]` grab.
    - Dynamic weapon physics swinging ($> 1.6\text{ m/s}$ in VR or Left Click/Space on Desktop) with whoosh audio (`playSwordSwing()`), haptic vibration, and blade spark trails.
 4. **Canonical 30×30 Skara Brae City Grid (`src/world/skara-brae/SkaraBraeStreetScene.js`)**:
    - Exact 1985 30×30 city grid with Adventurers Guild, Temples (Tarjan & Divine Light), Review Board, Roscoe's Energy Emporium, and dynamic Day/Night lighting and SP regeneration.
 5. **3D Combat Arena (`src/world/combat-zone/CombatArena.js`)**:
-   - Runic arena floor, scrolling battle text log, front/back row party formation, monster sprites, and full CRPG d20 combat mechanics.
+   - Runic arena floor, front/back row party formation, monster sprites, and full CRPG d20 combat mechanics.
+   - **WebXR Spatial Narrative Combat Scroll (`src/ui/spatial-hud/SpatialCombatScroll.js`, `src/core/utils/MessageSpooler.js`, `src/core/combat/CombatNarrativeGrammar.js`)**:
+     - Cylindrical curved wraparound parchment UI (`THREE.CylinderGeometry`, radius 2.0, height 1.0, radialSegments 32, thetaLength 0.6) locked in player's FOV (lower-right quadrant, angled inward).
+     - 512×512 CanvasTexture with `THREE.NearestFilter` for authentic retro monospace pixel text.
+     - **Modular Token-Replacement Grammar (`CombatNarrativeGrammar.js`)**: Dynamic sentence structure `[Subject] [Action Verb] [Target] [Resolution][Conditional Modifier]` based on weapon types (sword $\to$ "swings at", axe $\to$ "heaves at", dagger $\to$ "lunges at", bow $\to$ "fires an arrow at", unarmed $\to$ "strikes at", etc.) and monster attack kinds (snaps at, claws at, bashes at, stings at, breathes fire, etc.).
+     - **Suspenseful Action-by-Action Pacing**: Asynchronous FIFO `MessageSpooler` yielding typewriter characters at ~20ms per character with an 800ms line delay. Individual combatant resolution evaluates one hero or monster action, prints character-by-character with mechanical clicks, pauses, updates 3D formations in real time upon hits/kills, and then proceeds to the next combatant.
+     - Procedural mechanical typewriter click audio synthesized via `BardSynth.playTypewriterClick()`.
+    - Physical terminal pixel scrolling via `ctx.drawImage(canvas, 0, -lineHeight)` and `ctx.clearRect()`.
+    - Command attack buttons auto-disabled while narrative scroll or round is active (`isRoundInProgress`) to prevent action spamming.
+    - **Modern 3D Combat Arena - Visual Feedback & Tactile Targeting (`CombatArena.js`)**:
+      - `triggerHitAnimation(monsterMesh, isCritical)`: 50ms pure white (`0xffffff`) material flash + 200ms Z-axis knockback (-0.3 units) with elastic snapback oscillation.
+      - `triggerDeathAnimation(monsterMesh)`: 300ms scale-down to 0 accompanied by vertical floor sink (-1.5 units) and an instant 28-particle `THREE.Points` amber spark burst (`createDeathParticleBurst`) with velocity, gravity decay, and additive blending.
+      - **Tactile Raycast Monster Targeting**:
+        - Selecting `[⚔️ Attack]` or `[✨ Cast Spell]` enters Targeting Mode instead of immediately firing.
+        - Living monster billboards activate pulsating red ground targeting rings (`targetRing`) and radiant golden highlight tints (`0xfef08a`).
+        - WebXR controller raycast (`xr.onSelect`), center reticle gaze (`[A]`), and desktop pointer clicks intersect monster billboards via `interactableMonsters` and route directly to `handleMonsterClick()`.
+        - Clicking a designated monster immediately evaluates the turn action with that target, triggering hit/crit/death feedback and scrolling narrative log text.
+      - **"⚡ BLITZ" Anti-Grind Mechanic**:
+        - `CombatEngine.canBlitz()` calculates party average level vs highest monster level (threshold: party $\ge$ monster level + 3).
+        - Renders a prominent golden-bordered `[⚡ BLITZ (AUTO-WIN)]` button on the combat command panel when eligible.
+        - Clicking Blitz executes an instantaneous mathematical simulation loop without animation or spooler delays, rapidly awarding full XP and gold split to surviving heroes.
 
-### 📖 Spatial HUD / Player Book (`src/ui/spatial-hud/PalmBookMenu.js`)
-- Supinating hand (palm-up) summons the Grimoire; pronating (palm-down) dispels it.
-- Left controller **Y** or **X** button toggles HUD mode.
-- 3 Pages: Hero Inspection with condition portraits, Real-Time Automap, and Live Spell Testing.
+### 📖 Diegetic Field Command Deck / Spatial Grimoire (`src/ui/spatial-hud/PalmBookMenu.js`)
+- Supinating hand (palm-up) summons the Grimoire; pronating (palm-down) dispels it. Left controller **Y** or **X** button toggles HUD mode.
+- Internal 512×512 resolution canvas with `THREE.NearestFilter` for sharp retro pixel text in VR and Desktop.
+- 4-Tab Navigation Index along outer edge: `[1: MAP] [2: PARTY] [3: BUFFS] [4: SPELLS]` + `[🔄 C64 DESK]`.
+- **Tab 1 (Live Automap)**: 16×16 local grid centered on player source coordinates, directional chevron rotated by camera/rig heading with cardinal labels, landmark icons (`⚔️`, `🍺`, `🛡️`, `📜`, `🏛️`), and real-time fog of war discovery via `FreeLocomotion.js` (`revealTile`).
+- **Tab 2 (Party Vitals)**: 6 hero rows with HP/SP bars, condition badges, and red warning cards (<25% HP / non-OK status).
+- **Tab 3 (World Time & Buffs)**: Day/Night phase countdown (`mm:ss`), town services status, active Bard song turns remaining, and party buff list.
+- **Tab 4 (Spellbook)**: Out-of-combat spells grouped by caster with SP verification, SP deduction, and live casting testing (`FLAME`, `ARMOR`, `VORPAL`).
+
+### 🎲 1985-Accurate Encounter Generation Algorithm (`src/core/encounter/EncounterGenerator.js` & `src/data/EncounterTables.js`)
+- Zero dynamic party scaling: strictly authentic area- and time-based encounter tables parsed from `bt1-encounter-tables.csv`.
+- Spatial hash map parsed from `bt1-forced-encounters.csv` keyed by `{zone}_{x}_{y}` (Kylearan 99 Berserkers, Wine Cellar ambushes, Mangar guardians).
+- 4-step pipeline: Step 1 (Forced Trigger Check) -> Step 2 (10% RNG Step Check & Table Selection) -> Step 3 (Group Count Roll) -> Step 4 (Group Ingestion).
+- Group payload: array of structured monster objects with `name`, `quantity`, `ac`, `hpPerUnit`, and `spriteSlug`.
+- Movement integration: `SkaraBraeGrid.checkStepTransition` evaluates `EncounterGenerator.evaluateStep` on walkable cell entries, halts locomotion (`locomotion.halt()`), locks HUD, and enters `GameState.COMBAT_ZONE`.
 
 ---
 
 ## 📋 Critical Guidelines for Any Incoming Agent
 1. **Always verify tests and build**:
-   - Run `npm test` (30/30 unit tests must pass).
+   - Run `npm test` (82/82 unit tests must pass).
    - Run `npm run build` (Vite production bundle must compile cleanly).
 2. **Preserve Dual VR + Desktop Support**:
    - Every single feature must work in both WebXR 6DOF VR (Meta Quest, Vision Pro) and Desktop fallback (WASD, Mouse, Keybinds).

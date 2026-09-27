@@ -8,9 +8,32 @@ import * as THREE from 'three';
  *   - Phosphor RGB triad sub-pixel mask & scanline rasterization
  *   - Cathode ray sweep jitter & subtle 60Hz phosphor decay flicker
  *   - Corner vignette & glass reflection highlight
+ *
+ * ⚡ VR Performance Strategy
+ * ─────────────────────────
+ * In WebXR stereo mode the GPU renders this mesh **twice per frame** (once per
+ * eye), so every fragment-shader instruction costs 2×.  The full CRT shader
+ * runs 3 texture samples (chromatic aberration) + sin() + pow() + distance()
+ * per pixel — acceptable on a desktop GPU but budget-breaking on standalone
+ * mobile hardware (Quest 3S target: ≤11.2 ms/frame at 90 Hz).
+ *
+ * Solution: call `CRTMonitorShader.createVRFallbackMaterial(texture)` in VR
+ * mode.  It is a plain `MeshBasicMaterial` — a single texture lookup with zero
+ * per-pixel math, rendered by the driver's fixed-function path.  Visual
+ * fidelity is preserved because the canvas texture already contains the correct
+ * C64 screen content; only the post-process effects (scanlines, barrel
+ * distortion, phosphor bloom) are suppressed while the headset is active.
+ * They are automatically restored when the XR session ends.
+ *
+ * Usage in RetroRoom:
+ *   // On VR session start:
+ *   retroRoom.setVRMode(true);
+ *   // On VR session end:
+ *   retroRoom.setVRMode(false);
  */
 export class CRTMonitorShader {
   /**
+   * Full-featured CRT shader for Desktop / non-XR rendering.
    * @param {THREE.Texture} canvasTexture
    * @returns {THREE.ShaderMaterial}
    */
@@ -92,6 +115,23 @@ export class CRTMonitorShader {
           gl_FragColor = vec4(baseColor, 1.0);
         }
       `,
+      side: THREE.DoubleSide
+    });
+  }
+
+  /**
+   * Lightweight VR fallback: single texture lookup, zero per-pixel math.
+   * Replaces the full CRT shader while a WebXR session is active to keep the
+   * per-eye fragment budget within the Quest 3S render deadline (≤11.2 ms at
+   * 90 Hz).  The canvas texture still shows the correct C64 screen content;
+   * only the scanline / barrel / phosphor post-effects are suppressed.
+   *
+   * @param {THREE.Texture} canvasTexture  Same texture used by createMaterial()
+   * @returns {THREE.MeshBasicMaterial}
+   */
+  static createVRFallbackMaterial(canvasTexture) {
+    return new THREE.MeshBasicMaterial({
+      map: canvasTexture,
       side: THREE.DoubleSide
     });
   }

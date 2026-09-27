@@ -138,6 +138,11 @@ export const GARTH_STANDARD_ITEMS = [
 
   // ─── Musical Instruments ────────────────────────────────────────────
   {
+    name: 'Bard Lute', category: ItemCategory.INSTRUMENT, price: 35,
+    usableBy: ['Bard'], damage: 0, acBonus: 0,
+    description: "A finely crafted 12-string bard's lute."
+  },
+  {
     name: 'Mandolin', category: ItemCategory.INSTRUMENT, price: 30,
     usableBy: ['Bard'], damage: 0, acBonus: 0,
     description: 'A stringed musical instrument for Bards.'

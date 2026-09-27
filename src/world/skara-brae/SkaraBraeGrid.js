@@ -29,6 +29,9 @@ export class SkaraBraeGrid {
     this.mapGroup.name = 'SkaraBraeGrid';
     this.mapGroup.visible = false;
 
+    this.lastStepX = null;
+    this.lastStepY = null;
+
     if (this.scene) {
       this.scene.add(this.mapGroup);
     }
@@ -110,6 +113,27 @@ export class SkaraBraeGrid {
       return { x, y };
     }
     return null;
+  }
+
+  /**
+   * Tracks step transitions across walkable grid tiles.
+   * Returns stepped=true when crossing into a new coordinate cell.
+   * @param {number} playerX - World X coordinate
+   * @param {number} playerZ - World Z coordinate
+   * @returns {{ stepped: boolean, x: number, y: number, isWalkable: boolean }}
+   */
+  checkStepTransition(playerX, playerZ) {
+    const { x, y, inBounds } = this.worldToSource(playerX, playerZ);
+    if (!inBounds) return { stepped: false, x: -1, y: -1, isWalkable: false };
+
+    if (x !== this.lastStepX || y !== this.lastStepY) {
+      this.lastStepX = x;
+      this.lastStepY = y;
+      const walkable = this.isWalkable(x, y);
+      return { stepped: true, x, y, isWalkable: walkable };
+    }
+
+    return { stepped: false, x, y, isWalkable: false };
   }
 
   /**

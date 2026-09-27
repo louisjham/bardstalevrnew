@@ -99,6 +99,20 @@ export class FreeLocomotion {
     this.currentGameState = state;
   }
 
+  /**
+   * Immediately halts all locomotion velocities, momentum, and movement keys.
+   */
+  halt() {
+    this.velocity.set(0, 0, 0);
+    this.chairVelocity.set(0, 0, 0);
+    this.moveDirection.set(0, 0, 0);
+    if (this.keys) {
+      for (const k in this.keys) {
+        this.keys[k] = false;
+      }
+    }
+  }
+
   bindKeyboard() {
     if (typeof window === 'undefined') return;
 
@@ -724,6 +738,11 @@ export class FreeLocomotion {
 
     // 5. 2D Bumper Car Collision Detection & Bounce Response
     this.applyBumperCarCollisions(target.position, this.chairVelocity, activeState);
+
+    // Dynamic automap fog-of-war discovery
+    if (this.skaraBraeGrid && typeof this.skaraBraeGrid.revealTile === 'function') {
+      this.skaraBraeGrid.revealTile(target.position.x, target.position.z);
+    }
 
     // 6. Strict Planar Ground Lock:
     // In WebXR VR mode, rig is pinned to floor (y = 0.0) so real physical room-scale/seated height is natural.

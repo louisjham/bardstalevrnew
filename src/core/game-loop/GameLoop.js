@@ -1,5 +1,11 @@
 // GameLoop.js - Complete 5-Location State Machine
 // Validates state transitions and manages the party lifecycle.
+//
+// ⚡ Performance note: This class is a pure state machine — it does NOT run a
+// requestAnimationFrame loop and instantiates zero Three.js objects.
+// All render-loop allocations (Vector3, Matrix4, etc.) live in the individual
+// world modules (FullVRTavern, CombatArena, etc.) which pre-allocate their own
+// scratch buffers.  No GC optimizations are needed here.
 
 export const GameState = {
   RETRO_ROOM: 'RETRO_ROOM',               // 1980s C64 Desk & Floppy Disk Load

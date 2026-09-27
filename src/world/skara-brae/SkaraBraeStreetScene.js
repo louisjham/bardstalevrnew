@@ -255,7 +255,13 @@ export class SkaraBraeStreetScene {
     const roofGeo = new THREE.ConeGeometry(S * 0.75, 1.8, 4);
     this.disposables.push(boxGeo, planeGeo, curbGeo, roofGeo);
 
-    // Build the 30x30 Skara Brae City Grid
+    // Collect cell transform data to batch environment into THREE.InstancedMesh instances
+    const streetPositions = [];
+    const curbTransforms = [];
+    const roofPositions = [];
+    const buildingsByFacade = new Map();
+
+    // 2. Scan the 30x30 Skara Brae City Grid
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const cell = getCell(x, y);
@@ -264,11 +270,7 @@ export class SkaraBraeStreetScene {
         const { worldX, worldZ } = sourceToWorld(x, y);
 
         if (cell.terrain === TerrainType.STREET) {
-          // Rough Cobblestone Street Tile
-          const streetTile = new THREE.Mesh(planeGeo, streetMat);
-          streetTile.rotation.x = -Math.PI / 2;
-          streetTile.position.set(worldX, 0.01, worldZ);
-          this.sceneGroup.add(streetTile);
+          streetPositions.push({ worldX, worldZ });
 
           // Add curbs along edges if adjacent to walls
           const neighbors = [
@@ -281,46 +283,91 @@ export class SkaraBraeStreetScene {
           for (const n of neighbors) {
             const adjCell = getCell(x + n.dx, y + n.dy);
             if (adjCell && adjCell.terrain !== TerrainType.STREET) {
-              const curb = new THREE.Mesh(curbGeo, curbMat);
-              curb.position.set(...n.pos);
-              curb.rotation.y = n.rotY;
-              this.sceneGroup.add(curb);
+              curbTransforms.push({ pos: n.pos, rotY: n.rotY });
             }
           }
         } else {
-          // Building / Wall Tile with Authentic C64 Facades on all sides
+          // Building / Wall Tile with Authentic C64 Facades
           const facadeType = this.getLandmarkFacadeType(cell.landmarkId);
-          const facadeMat = this.getFacadeMaterial(facadeType);
-
-          // Multi-material cube: [+X (East), -X (West), +Y (Top), -Y (Bottom), +Z (South), -Z (North)]
-          const materials = [
-            facadeMat,         // East
-            facadeMat,         // West
-            roofMat,           // Top
-            stoneBasementMat,  // Bottom
-            facadeMat,         // South
-            facadeMat          // North
-          ];
-
-          const bldg = new THREE.Mesh(boxGeo, materials);
-          bldg.position.set(worldX, bldgHeight / 2, worldZ);
-          bldg.userData = {
-            isBuildingTile: true,
-            cellX: x,
-            cellY: y,
-            landmarkId: cell.landmarkId,
-            facadeType
-          };
-          this.sceneGroup.add(bldg);
-
-          // Pitched Roof on top
-          const roof = new THREE.Mesh(roofGeo, roofMat);
-          roof.rotation.y = Math.PI / 4;
-          roof.position.set(worldX, bldgHeight + 0.9, worldZ);
-          this.sceneGroup.add(roof);
+          if (!buildingsByFacade.has(facadeType)) {
+            buildingsByFacade.set(facadeType, []);
+          }
+          buildingsByFacade.get(facadeType).push({ worldX, worldZ });
+          roofPositions.push({ worldX, worldZ });
         }
       }
     }
+
+    const dummy = new THREE.Object3D();
+
+    // ⚡ 1. Instanced Street Cobblestone Tiles: ~400 meshes collapsed into 1 draw call
+    if (streetPositions.length > 0) {
+      const streetInstanced = new THREE.InstancedMesh(planeGeo, streetMat, streetPositions.length);
+      for (let i = 0; i < streetPositions.length; i++) {
+        dummy.position.set(streetPositions[i].worldX, 0.01, streetPositions[i].worldZ);
+        dummy.rotation.set(-Math.PI / 2, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        streetInstanced.setMatrixAt(i, dummy.matrix);
+      }
+      streetInstanced.instanceMatrix.needsUpdate = true;
+      this.sceneGroup.add(streetInstanced);
+      this.disposables.push(streetInstanced);
+    }
+
+    // ⚡ 2. Instanced Curbs along Street Edges: ~600 meshes collapsed into 1 draw call
+    if (curbTransforms.length > 0) {
+      const curbInstanced = new THREE.InstancedMesh(curbGeo, curbMat, curbTransforms.length);
+      for (let i = 0; i < curbTransforms.length; i++) {
+        dummy.position.set(...curbTransforms[i].pos);
+        dummy.rotation.set(0, curbTransforms[i].rotY, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        curbInstanced.setMatrixAt(i, dummy.matrix);
+      }
+      curbInstanced.instanceMatrix.needsUpdate = true;
+      this.sceneGroup.add(curbInstanced);
+      this.disposables.push(curbInstanced);
+    }
+
+    // ⚡ 3. Instanced Pitched Roofs on Buildings: ~500 meshes collapsed into 1 draw call
+    if (roofPositions.length > 0) {
+      const roofInstanced = new THREE.InstancedMesh(roofGeo, roofMat, roofPositions.length);
+      for (let i = 0; i < roofPositions.length; i++) {
+        dummy.position.set(roofPositions[i].worldX, bldgHeight + 0.9, roofPositions[i].worldZ);
+        dummy.rotation.set(0, Math.PI / 4, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        roofInstanced.setMatrixAt(i, dummy.matrix);
+      }
+      roofInstanced.instanceMatrix.needsUpdate = true;
+      this.sceneGroup.add(roofInstanced);
+      this.disposables.push(roofInstanced);
+    }
+
+    // ⚡ 4. Instanced Buildings grouped by Facade Type: ~500 building meshes collapsed to 1 draw call per facade type
+    buildingsByFacade.forEach((positions, facadeType) => {
+      const facadeMat = this.getFacadeMaterial(facadeType);
+      const materials = [
+        facadeMat,         // East
+        facadeMat,         // West
+        roofMat,           // Top
+        stoneBasementMat,  // Bottom
+        facadeMat,         // South
+        facadeMat          // North
+      ];
+      const bldgInstanced = new THREE.InstancedMesh(boxGeo, materials, positions.length);
+      for (let i = 0; i < positions.length; i++) {
+        dummy.position.set(positions[i].worldX, bldgHeight / 2, positions[i].worldZ);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        bldgInstanced.setMatrixAt(i, dummy.matrix);
+      }
+      bldgInstanced.instanceMatrix.needsUpdate = true;
+      this.sceneGroup.add(bldgInstanced);
+      this.disposables.push(bldgInstanced);
+    });
 
     // Street Corner Lantern Torches at Major Intersections
     const torchNodes = [

@@ -195,4 +195,34 @@ export class BardSynth {
     osc.start(now);
     osc.stop(now + 0.35);
   }
+
+  // Play a very short, low-volume retro mechanical typewriter key click
+  playTypewriterClick() {
+    if (typeof window === 'undefined') return;
+    if (!this.initialized) this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    if (!this.ctx || !this.masterGain) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const dur = 0.012;
+
+      const osc = this.ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1800 + (Math.random() * 600 - 300), now);
+      osc.frequency.exponentialRampToValueAtTime(280, now + dur);
+
+      const clickGain = this.ctx.createGain();
+      clickGain.gain.setValueAtTime(0.035, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+      osc.connect(clickGain);
+      clickGain.connect(this.masterGain);
+
+      osc.start(now);
+      osc.stop(now + dur);
+    } catch {}
+  }
 }

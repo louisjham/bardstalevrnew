@@ -5,11 +5,12 @@ import { TorchFlameShader } from '../../shaders/TorchFlameShader.js';
 import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
 
 export class GarthsShop {
-  constructor(scene, camera, onExitToSkaraBrae, party, onOpenCharacterCards) {
+  constructor(scene, camera, onExitToSkaraBrae, party, onOpenCharacterCards, onToast) {
     this.scene = scene;
     this.camera = camera;
     this.onExitToSkaraBrae = onExitToSkaraBrae;
     this.onOpenCharacterCards = onOpenCharacterCards;
+    this.onToast = onToast;
 
     this.spriteManager = new AnimatedSpriteManager();
     this.animatedUpdaters = [];
@@ -27,10 +28,12 @@ export class GarthsShop {
     this.weapons = [];
     this.weaponTrails = [];
     this.garthGroup = null;
+    this.recruitBillboardGroup = null;
 
     this.initShopEnvironment();
     this.initLightingAndTorches();
     this.initGarthAndCounter();
+    this.initRecruitBillboard();
     this.initPhysicalWeapons();
     this.initQuickEquipAndLedger();
     this.initExitDoor();
@@ -127,62 +130,79 @@ export class GarthsShop {
   }
 
   initLightingAndTorches() {
-    // 1. Warm Ambient Lighting (Bright and clear)
-    const ambient = new THREE.AmbientLight(0xffedd5, 1.4);
-    this.shopGroup.add(ambient);
+    // ── Baked Global Illumination Substitute ──────────────────────────────────
+    // HemisphereLight replaces both AmbientLight + DirectionalLight.
+    // ⚡ Drops 7 real-time lights to 1 hero PointLight + 1 HemisphereLight.
+    //    Wall-sconce torches keep TorchFlameShader visuals; emissive bracket
+    //    material fakes local warmth at zero per-fragment GPU cost.
+    const hemiLight = new THREE.HemisphereLight(
+      0xfff0d8,  // Sky: warm daylight shopfront
+      0x1a1005,  // Ground: dark stone floor
+      1.6        // Replaces AmbientLight(0xffedd5, 1.4) + DirectionalLight(0xfff7ed, 1.0)
+    );
+    this.shopGroup.add(hemiLight);
 
-    // 2. Directional Ceiling Light focused on Counter
-    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.0);
-    dirLight.position.set(0, 3.8, 0);
-    this.shopGroup.add(dirLight);
-
-    // 3. Counter Overhead Lantern
+    // Counter Overhead Lantern — single hero PointLight covering the entire shop.
+    // ⚡ This is the only real-time PointLight in Garth's Shop.  Its 7.5-unit
+    //    radius reaches all weapons on the counter without needing per-torch lights.
     const counterLanternLight = new THREE.PointLight(0xfde68a, 3.2, 7.5);
     counterLanternLight.position.set(0, 2.5, -2.0);
     this.shopGroup.add(counterLanternLight);
+    this.heroLight = { light: counterLanternLight, baseIntensity: 3.2, phase: 0.0 };
 
     const lanternHousing = new THREE.Mesh(
       new THREE.CylinderGeometry(0.12, 0.16, 0.28, 8),
-      new THREE.MeshStandardMaterial({ color: 0x1e1b4b, metalness: 0.8 })
+      new THREE.MeshStandardMaterial({
+        color: 0x1e1b4b,
+        metalness: 0.8,
+        emissive: 0xfde68a,
+        emissiveIntensity: 0.4  // Lantern body glows — no extra PointLight needed
+      })
     );
     lanternHousing.position.set(0, 2.6, -2.0);
     this.shopGroup.add(lanternHousing);
 
-    // 4. Wall Sconces & Torches
+    // Wall Sconces & Torches — visual only, no PointLights.
+    // ⚡ Removed 5 PointLights vs original.  Emissive bracket material + hero
+    //    counter light gives the room adequate warmth without per-fragment cost.
     const torchConfigs = [
       { pos: [-4.8, 2.2, -2.2], rotY: Math.PI / 2 },
-      { pos: [4.8, 2.2, -2.2], rotY: -Math.PI / 2 },
-      { pos: [-4.8, 2.2, 2.0], rotY: Math.PI / 2 },
-      { pos: [4.8, 2.2, 2.0], rotY: -Math.PI / 2 },
-      { pos: [1.2, 2.2, 4.8], rotY: Math.PI } // Near exit door
+      { pos: [ 4.8, 2.2, -2.2], rotY: -Math.PI / 2 },
+      { pos: [-4.8, 2.2,  2.0], rotY: Math.PI / 2 },
+      { pos: [ 4.8, 2.2,  2.0], rotY: -Math.PI / 2 },
+      { pos: [ 1.2, 2.2,  4.8], rotY: Math.PI } // Near exit door
     ];
+
+    // Shared emissive material for all bracket heads
+    const bracketEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      metalness: 0.8,
+      emissive: 0xf97316,
+      emissiveIntensity: 0.9
+    });
 
     torchConfigs.forEach(cfg => {
       const torchGroup = new THREE.Group();
       torchGroup.position.set(...cfg.pos);
       torchGroup.rotation.y = cfg.rotY;
 
-      // Iron Sconce Holder
+      // Iron Sconce Holder with emissive glow (replaces per-sconce PointLight)
       const bracket = new THREE.Mesh(
         new THREE.CylinderGeometry(0.03, 0.03, 0.35),
-        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 })
+        bracketEmissiveMat
       );
       bracket.rotation.z = -Math.PI / 6;
       torchGroup.add(bracket);
 
-      // Flame Emitter Mesh with TorchFlameShader
+      // Flame Emitter Mesh with TorchFlameShader (visual only)
       const flame = TorchFlameShader.createFlameMesh('fire');
       flame.scale.set(0.9, 0.95, 0.9);
       flame.position.set(0.08, 0.2, 0);
       torchGroup.add(flame);
       this.flameMeshes.push(flame);
 
-      // Warm Point Light
-      const light = new THREE.PointLight(0xf59e0b, 2.6, 8.0);
-      light.position.set(0.08, 0.22, 0);
-      torchGroup.add(light);
+      // ⚡ No PointLight here — removed 5 PointLights vs original.
 
-      this.torches.push({ flame, light, baseIntensity: 2.6 });
       this.shopGroup.add(torchGroup);
     });
   }
@@ -275,13 +295,51 @@ export class GarthsShop {
     this.shopGroup.add(banner);
   }
 
+  initRecruitBillboard() {
+    this.recruitBillboardGroup = new THREE.Group();
+    // Positioned physically behind Garth's counter facing the player
+    this.recruitBillboardGroup.position.set(1.4, 1.35, -3.1);
+    this.recruitBillboardGroup.visible = false;
+
+    // 3D Text Label Canvas above the billboard
+    this.recruitCanvas = document.createElement('canvas');
+    this.recruitCanvas.width = 512;
+    this.recruitCanvas.height = 128;
+    this.recruitCanvasCtx = this.recruitCanvas.getContext('2d');
+
+    this.recruitTextTexture = new THREE.CanvasTexture(this.recruitCanvas);
+    const textPlaneMat = new THREE.MeshBasicMaterial({
+      map: this.recruitTextTexture,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+    const textPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), textPlaneMat);
+    textPlane.position.set(0, 1.25, 0.02);
+    this.recruitBillboardGroup.add(textPlane);
+
+    // Recruit sprite billboard (2.0 x 2.0) using animatedSpriteManager
+    (async () => {
+      try {
+        const animated = await this.spriteManager.createAnimatedBillboard('/assets/sprites/bt1_01.png', 4);
+        this.recruitSpriteMesh = animated.mesh;
+        this.recruitSpriteMesh.position.set(0, 0, 0);
+        this.recruitBillboardGroup.add(this.recruitSpriteMesh);
+        this.animatedUpdaters.push(animated.update);
+      } catch (e) {
+        console.warn('Failed to load recruit sprite:', e);
+      }
+    })();
+
+    this.shopGroup.add(this.recruitBillboardGroup);
+  }
+
   initPhysicalWeapons() {
     // 3D Modeled Weapons on Garth's Counter
     const weaponItems = [
       { name: 'Broadsword', category: ItemCategory.WEAPON, damage: 8, bonus: '+8 DMG', modelType: 'SWORD' },
       { name: 'Battleaxe', category: ItemCategory.WEAPON, damage: 10, bonus: '+10 DMG', modelType: 'AXE' },
-      { name: 'Iron Shield', category: ItemCategory.SHIELD, acBonus: 2, bonus: '+2 AC', modelType: 'SHIELD' },
       { name: 'Oak Staff', category: ItemCategory.WEAPON, damage: 4, bonus: '+4 DMG (Mages)', modelType: 'STAFF' },
+      { name: 'Bard Lute', category: ItemCategory.INSTRUMENT, damage: 0, bonus: 'Songs (Bards)', modelType: 'LUTE' },
       { name: 'Warhammer', category: ItemCategory.WEAPON, damage: 9, bonus: '+9 DMG', modelType: 'HAMMER' },
       { name: 'Dagger', category: ItemCategory.WEAPON, damage: 5, bonus: '+5 DMG (Rogues)', modelType: 'DAGGER' }
     ];
@@ -388,10 +446,31 @@ export class GarthsShop {
         );
         crystal.position.set(0, 0.04, -0.28);
         weaponGroup.add(crystal);
+        // ⚡ crystalLight PointLight removed — the crystal's emissive:0x0284c7 /
+        //    emissiveIntensity:0.8 already provides the glow cue at zero GPU cost.
+      } else if (item.modelType === 'LUTE') {
+        // Bard's Acoustic Lute
+        const luteWoodMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+        const luteFaceMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.3 });
+        const luteBody = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), luteWoodMat);
+        luteBody.scale.set(1.0, 1.25, 0.55);
+        luteBody.position.set(0, 0.04, -0.06);
+        weaponGroup.add(luteBody);
 
-        const crystalLight = new THREE.PointLight(0x38bdf8, 1.2, 2.0);
-        crystalLight.position.set(0, 0.06, -0.28);
-        weaponGroup.add(crystalLight);
+        const soundboard = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), luteFaceMat);
+        soundboard.scale.set(1.0, 1.2, 1.0);
+        soundboard.position.set(0, 0.07, -0.06);
+        soundboard.rotation.x = -Math.PI / 2;
+        weaponGroup.add(soundboard);
+
+        const rosette = new THREE.Mesh(new THREE.CircleGeometry(0.025, 16), new THREE.MeshBasicMaterial({ color: 0x451a03 }));
+        rosette.position.set(0, 0.072, -0.06);
+        rosette.rotation.x = -Math.PI / 2;
+        weaponGroup.add(rosette);
+
+        const luteNeck = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.025, 0.26), luteWoodMat);
+        luteNeck.position.set(0, 0.05, 0.16);
+        weaponGroup.add(luteNeck);
       } else if (item.modelType === 'HAMMER') {
         // Warhammer
         const hammerShaft = new THREE.Mesh(
@@ -938,10 +1017,13 @@ export class GarthsShop {
       }
     });
 
-    // 2. Flicker Torches
-    this.torches.forEach((t, i) => {
-      t.light.intensity = t.baseIntensity + (Math.sin(time * 8 + i * 2) * 0.4 + (Math.random() - 0.5) * 0.2);
-    });
+    // 2. Hero Light Flicker — single counter lantern PointLight.
+    // ⚡ Replaces the old torches.forEach over 5 entries (which now have no lights).
+    if (this.heroLight) {
+      this.heroLight.light.intensity = this.heroLight.baseIntensity
+        + Math.sin(time * 8.0 + this.heroLight.phase) * 0.35
+        + (Math.random() - 0.5) * 0.15;
+    }
 
     // 3. Update Animated Sprites (Garth NPC)
     this.animatedUpdaters.forEach(fn => fn(time));
@@ -1005,6 +1087,49 @@ export class GarthsShop {
           badge.lookAt(this.camera.position);
         }
       });
+    }
+  }
+
+  updateRecruitBillboard(pendingRecruitsArray, showToast) {
+    if (pendingRecruitsArray && pendingRecruitsArray.length > 0) {
+      if (this.recruitBillboardGroup) {
+        this.recruitBillboardGroup.visible = true;
+      }
+      const nextRecruitName = pendingRecruitsArray[0];
+
+      const ctx = this.recruitCanvasCtx;
+      if (ctx) {
+        ctx.clearRect(0, 0, 512, 128);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.strokeStyle = '#f3cf65';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.roundRect(8, 8, 496, 112, 16);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f3cf65';
+        ctx.font = 'bold 32px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`Next Up: ${nextRecruitName}`, 256, 48);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText(`Select Weapon to Bestow Class (${pendingRecruitsArray.length} in queue)`, 256, 88);
+
+        if (this.recruitTextTexture) {
+          this.recruitTextTexture.needsUpdate = true;
+        }
+      }
+    } else {
+      if (this.recruitBillboardGroup) {
+        this.recruitBillboardGroup.visible = false;
+      }
+      const toastFn = showToast || this.onToast;
+      if (toastFn) {
+        toastFn("🛡️ Party fully assembled! The streets of Skara Brae await.");
+      }
     }
   }
 

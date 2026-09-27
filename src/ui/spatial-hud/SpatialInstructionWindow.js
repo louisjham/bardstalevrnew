@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { COLLISION_LAYER } from './SpatialCollisionLayers.js';
 
 /**
  * SpatialInstructionWindow
@@ -33,6 +34,9 @@ export class SpatialInstructionWindow {
     this.portraitImages = new Map();
     this.buttons = [];
 
+    /** @type {THREE.Mesh|null} Low-poly primitive collision plane */
+    this.interactionCollider = null;
+
     this.initMesh();
   }
 
@@ -54,7 +58,17 @@ export class SpatialInstructionWindow {
     // 0.96m wide x 0.60m high floating panel
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.60), this.material);
     this.mesh.userData = { isSpatialInstructionMesh: true };
+    this.mesh.layers.enable(COLLISION_LAYER.SPATIAL_UI);
     this.group.add(this.mesh);
+
+    // ⚡ Low-poly primitive collision plane (layer = SPATIAL_UI)
+    const colGeo = new THREE.PlaneGeometry(0.96, 0.60);
+    const colMat = new THREE.MeshBasicMaterial({ visible: false });
+    this.interactionCollider = new THREE.Mesh(colGeo, colMat);
+    this.interactionCollider.position.set(0, 0, 0.005);
+    this.interactionCollider.layers.set(COLLISION_LAYER.SPATIAL_UI);
+    this.interactionCollider.userData = { isUICollider: true, window: this };
+    this.group.add(this.interactionCollider);
   }
 
   /**

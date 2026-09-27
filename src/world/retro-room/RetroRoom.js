@@ -16,6 +16,8 @@ export class RetroRoom {
     this.floppyDiskMesh = null;
     this.diskDriveMesh = null;
     this.crtMonitorMesh = null;
+    /** @type {THREE.Mesh|null} The screen plane mesh that carries the CRT material. */
+    this.crtScreenMesh = null;
     this.driveLedLight = null;
     this.lavaLampLight = null;
     this.portalMesh = null;
@@ -24,8 +26,21 @@ export class RetroRoom {
     this.isBooting = false;
     this.isBootComplete = false;
 
-    // Cinematic On-Rails Timeline State Machine
-    this.cinematicPhase = 'IDLE'; // 'DOLLY_TO_DESK', 'LOOK_AT_DISK', 'INSERT_DISK', 'BOOT_C64', 'PORTAL_WARP', 'DONE'
+    // Flash-Paper Intro & Stationary Void State
+    this.introVoidGroup = null;
+    this.isFlashPaperActive = false;
+    this.isFadingIn = false;
+    this.flareMesh = null;
+    this.flareShaderMat = null;
+    this.sparkParticles = null;
+    this.flarePointLight = null;
+    this.titleCardMesh = null;
+    this.titleCardMat = null;
+    this.titleCardTex = null;
+    this.screenOverlay = null;
+
+    // Cinematic / Intro State Machine
+    this.cinematicPhase = 'IDLE';
     this.cinematicTime = 0.0;
     this.onCinematicComplete = null;
 
@@ -33,6 +48,15 @@ export class RetroRoom {
     this.crtTexture = null;
 
     this.interactableObjects = [];
+
+    // ── Pre-allocated scratch Vector3s (avoids `new THREE.Vector3()` every frame
+    //    inside the cinematic update loop — eliminates per-frame GC pressure).
+    this._v3A = new THREE.Vector3();
+    this._v3B = new THREE.Vector3();
+    this._v3Lerp = new THREE.Vector3();
+
+    // VR mode flag — set via setVRMode(). Controls material swap & uTime update.
+    this._isVRMode = false;
 
     this.initRetroRoom();
     this.scene.add(this.roomGroup);
@@ -208,22 +232,134 @@ export class RetroRoom {
     // 8. Desktop Clutter & 5¼" Floppy Disk
     this.initDeskClutter();
 
-    // 9. Portal Warp Vortex Mesh for Transition into Tavern
-    this.initPortalEffect();
+    // 9. Flash-Paper Title Flare Intro & Camera Overlay
+    this.initFlashPaperIntro();
   }
 
-  initPortalEffect() {
-    const portalGeo = new THREE.PlaneGeometry(0.8, 0.8);
-    this.portalShaderMat = VortexPortalShader.createMaterial();
-    this.portalMesh = new THREE.Mesh(portalGeo, this.portalShaderMat);
-    this.portalMesh.position.set(-0.22, 1.15, -0.42);
-    this.portalMesh.visible = false;
-    this.roomGroup.add(this.portalMesh);
+  initFlashPaperIntro() {
+    this.introVoidGroup = new THREE.Group();
+    this.introVoidGroup.name = 'IntroVoidGroup';
+    this.introVoidGroup.visible = false;
+    this.scene.add(this.introVoidGroup);
 
-    this.particleVortex = VortexPortalShader.createParticleVortex(200);
-    this.particleVortex.position.set(-0.22, 1.15, -0.42);
-    this.particleVortex.visible = false;
-    this.roomGroup.add(this.particleVortex);
+    // 1. Flash-Paper Title Card
+    const titleCanvas = document.createElement('canvas');
+    titleCanvas.width = 1024;
+    titleCanvas.height = 512;
+    const tCtx = titleCanvas.getContext('2d');
+
+    // Dark parchment vignette background
+    const grad = tCtx.createRadialGradient(512, 256, 40, 512, 256, 460);
+    grad.addColorStop(0, 'rgba(28, 25, 23, 0.96)');
+    grad.addColorStop(0.75, 'rgba(15, 23, 42, 0.98)');
+    grad.addColorStop(1, 'rgba(2, 6, 23, 1.0)');
+    tCtx.fillStyle = grad;
+    tCtx.fillRect(0, 0, 1024, 512);
+
+    // Golden Filigree Border
+    tCtx.strokeStyle = '#f3cf65';
+    tCtx.lineWidth = 8;
+    tCtx.strokeRect(20, 20, 984, 472);
+    tCtx.strokeStyle = '#d97706';
+    tCtx.lineWidth = 3;
+    tCtx.strokeRect(32, 32, 960, 448);
+
+    // Corner Ornaments
+    const drawFlourish = (cx, cy) => {
+      tCtx.fillStyle = '#f59e0b';
+      tCtx.beginPath();
+      tCtx.arc(cx, cy, 14, 0, Math.PI * 2);
+      tCtx.fill();
+    };
+    drawFlourish(44, 44);
+    drawFlourish(980, 44);
+    drawFlourish(44, 468);
+    drawFlourish(980, 468);
+
+    // Header
+    tCtx.fillStyle = '#fbbf24';
+    tCtx.font = 'bold 26px Georgia, serif';
+    tCtx.textAlign = 'center';
+    tCtx.fillText('★ LOUIS J. HAM PRESENTS ★', 512, 105);
+
+    // Glowing Title: THE BARD\'S TALE
+    tCtx.shadowColor = '#f59e0b';
+    tCtx.shadowBlur = 32;
+    tCtx.fillStyle = '#fef08a';
+    tCtx.font = '900 68px Georgia, serif';
+    tCtx.fillText("THE BARD\'S TALE", 512, 210);
+    tCtx.shadowBlur = 0;
+
+    // Subtitle
+    tCtx.fillStyle = '#38bdf8';
+    tCtx.font = 'bold 28px monospace';
+    tCtx.fillText('TALES OF THE UNKNOWN • VOLUME I', 512, 275);
+
+    // Fantasy Glyphs
+    tCtx.fillStyle = '#c084fc';
+    tCtx.font = '40px sans-serif';
+    tCtx.fillText('⚔️   🍺   📜   🏰', 512, 350);
+
+    // Footer Credits
+    tCtx.fillStyle = '#94a3b8';
+    tCtx.font = '20px monospace';
+    tCtx.fillText('ELECTRONIC ARTS / INTERPLAY 1985 • VIRTUAL REALITY ADAPTATION', 512, 415);
+
+    this.titleCardTex = new THREE.CanvasTexture(titleCanvas);
+    this.titleCardMat = new THREE.MeshBasicMaterial({
+      map: this.titleCardTex,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    this.titleCardMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.0, 1.0),
+      this.titleCardMat
+    );
+    this.titleCardMesh.position.set(0, 1.18, -1.8);
+    this.titleCardMesh.visible = false;
+    this.introVoidGroup.add(this.titleCardMesh);
+
+    // 2. Fiery Flare Mesh (using VortexPortalShader)
+    this.flareShaderMat = VortexPortalShader.createMaterial();
+    this.flareMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 2.4),
+      this.flareShaderMat
+    );
+    this.flareMesh.position.set(0, 1.18, -1.85);
+    this.flareMesh.visible = false;
+    this.introVoidGroup.add(this.flareMesh);
+    this.portalMesh = this.flareMesh;
+    this.portalShaderMat = this.flareShaderMat;
+
+    // 3. Orbiting Spark Particles (flash paper embers burst)
+    this.sparkParticles = VortexPortalShader.createParticleVortex(260);
+    this.sparkParticles.position.set(0, 1.18, -1.8);
+    this.sparkParticles.visible = false;
+    this.introVoidGroup.add(this.sparkParticles);
+    this.particleVortex = this.sparkParticles;
+
+    // 4. Golden Flare Point Light
+    this.flarePointLight = new THREE.PointLight(0xffb703, 0.0, 12);
+    this.flarePointLight.position.set(0, 1.18, -1.5);
+    this.introVoidGroup.add(this.flarePointLight);
+
+    // 5. Camera-attached Screen Overlay for smooth VR/Desktop blackouts and fade-to-black transitions
+    this.screenOverlay = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.0, 2.0),
+      new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.0,
+        depthTest: false,
+        depthWrite: false
+      })
+    );
+    this.screenOverlay.position.set(0, 0, -0.15);
+    this.screenOverlay.renderOrder = 99999;
+    this.screenOverlay.frustumCulled = false;
+    this.camera.add(this.screenOverlay);
   }
 
   initPosters() {
@@ -666,6 +802,9 @@ export class RetroRoom {
       this.crtShaderMat
     );
     screenMesh.position.set(-0.06, 0, 0.232);
+    // Keep a direct reference so setVRMode() can swap the material without
+    // traversing the scene graph every VR session start/end.
+    this.crtScreenMesh = screenMesh;
     tvGroup.add(screenMesh);
 
     // Right-Side TV Control Panel (VHF/UHF rotary dials, volume knob, speaker grille)
@@ -937,42 +1076,6 @@ export class RetroRoom {
     this.floppyDiskMesh = diskGroup;
     this.roomGroup.add(diskGroup);
     this.interactableObjects.push(grabCollider, diskCover, labelMesh, diskPromptMesh, diskGroup);
-
-    this.initVortexPortal();
-  }
-
-  initVortexPortal() {
-    // 6. SWIRLING DIMENSIONAL WARP VORTEX PORTAL (Positioned in front of CRT Monitor screen)
-    this.portalShaderMat = VortexPortalShader.createMaterial();
-    this.portalMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.52, 0.52),
-      this.portalShaderMat
-    );
-    // CRT Monitor screen center is around (-0.28, 1.15, -0.448)
-    this.portalMesh.position.set(-0.28, 1.15, -0.44);
-    this.portalMesh.visible = false;
-    this.roomGroup.add(this.portalMesh);
-
-    // Orbiting 3D Particle Vortex
-    this.particleVortex = VortexPortalShader.createParticleVortex(220);
-    this.particleVortex.position.set(-0.28, 1.15, -0.44);
-    this.particleVortex.visible = false;
-    this.roomGroup.add(this.particleVortex);
-
-    // Camera-attached Screen Overlay for smooth VR/Desktop blackouts and fade-to-black transitions
-    this.screenOverlay = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.0, 2.0),
-      new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: 0.0,
-        depthTest: false,
-        depthWrite: false
-      })
-    );
-    this.screenOverlay.position.set(0, 0, -0.15);
-    this.screenOverlay.renderOrder = 9999;
-    this.camera.add(this.screenOverlay);
   }
 
   updateCRTScreen(text) {
@@ -1029,47 +1132,134 @@ export class RetroRoom {
   }
 
   startCinematicSequence(onComplete = null) {
+    this.triggerFlashPaperIntro(onComplete || this.onHeadInMonitor);
+  }
+
+  triggerFlashPaperIntro(onCompleteCallback) {
     this.reset();
-    this.cinematicPhase = 'DOLLY_TO_DESK';
-    this.cinematicTime = 0.0;
-    this.onCinematicComplete = onComplete || this.onHeadInMonitor;
+    this.isFlashPaperActive = true;
+    this.onCinematicComplete = onCompleteCallback || this.onHeadInMonitor;
 
-    if (this.portalMesh) {
-      this.portalMesh.visible = false;
-      this.portalMesh.scale.set(0.01, 0.01, 0.01);
-      if (this.portalShaderMat?.uniforms?.uProgress) {
-        this.portalShaderMat.uniforms.uProgress.value = 0.0;
-      }
+    // 1. Spawn the player stationary in the dark void
+    if (this.xrRig) {
+      this.xrRig.setPosition(0, 0, 0);
+      this.xrRig.setYRotation(0);
     }
+    this.camera.position.set(0, 1.18, 0);
+    this.camera.rotation.set(0, 0, 0);
 
-    if (this.particleVortex) {
-      this.particleVortex.visible = false;
+    // Hide bedroom enclosure, show dark void
+    this.roomGroup.visible = false;
+    if (this.introVoidGroup) {
+      this.introVoidGroup.visible = true;
     }
 
     if (this.screenOverlay) {
       this.screenOverlay.material.opacity = 0.0;
     }
 
-    // Line player avatar directly up with the desk (x = -0.10), placed at the back of the room (z = 2.6)
-    if (this.xrRig) {
-      this.xrRig.setPosition(-0.10, 0, 2.6);
-      this.xrRig.setYRotation(0);
+    // 2. Ignite the existing flash-paper title flare effect
+    if (this.flareMesh) this.flareMesh.visible = true;
+    if (this.sparkParticles) this.sparkParticles.visible = true;
+    if (this.titleCardMesh) {
+      this.titleCardMesh.visible = true;
+      this.titleCardMat.opacity = 0.0;
+      this.titleCardMesh.scale.set(0.85, 0.85, 0.85);
     }
-    this.camera.position.set(0, 1.22, 0); // Comfortable eye height
-    this.camera.rotation.set(0, 0, 0);
-    this.camera.lookAt(-0.10, 0.95, -0.60); // Frame entire desk and CRT monitor
+
+    // 3. Wait ~2500ms for the flare to peak and dissipate
+    const duration = 2500;
+    const startTime = performance.now();
+
+    const animateFlare = (now) => {
+      if (!this.isFlashPaperActive) return;
+
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      const timeSec = elapsed * 0.001;
+
+      // Update flare shader uniforms
+      if (this.flareShaderMat?.uniforms) {
+        this.flareShaderMat.uniforms.uTime.value = timeSec;
+        if (progress < 0.35) {
+          this.flareShaderMat.uniforms.uProgress.value = progress / 0.35;
+        } else {
+          this.flareShaderMat.uniforms.uProgress.value = Math.max(0.0, 1.0 - (progress - 0.35) / 0.55);
+        }
+      }
+
+      // Update particle vortex
+      if (this.sparkParticles?.update) {
+        this.sparkParticles.update(0.016, progress);
+      }
+
+      // Title Card Animation (flash paper ignition -> display -> dissipate)
+      if (this.titleCardMat && this.titleCardMesh) {
+        if (progress < 0.25) {
+          // Rapid flash paper ignition
+          const p = progress / 0.25;
+          this.titleCardMat.opacity = p;
+          const s = 0.85 + 0.2 * p;
+          this.titleCardMesh.scale.set(s, s, s);
+        } else if (progress < 0.65) {
+          // Peak display
+          this.titleCardMat.opacity = 1.0;
+          this.titleCardMesh.scale.set(1.05, 1.05, 1.05);
+        } else if (progress < 0.82) {
+          // Flash paper burning away like nitrocellulose
+          const p = (progress - 0.65) / 0.17;
+          this.titleCardMat.opacity = Math.max(0.0, 1.0 - p);
+          const s = 1.05 + 0.15 * p;
+          this.titleCardMesh.scale.set(s, s, s);
+        } else {
+          this.titleCardMat.opacity = 0.0;
+        }
+      }
+
+      // Dynamic flare light
+      if (this.flarePointLight) {
+        if (progress < 0.3) {
+          this.flarePointLight.intensity = (progress / 0.3) * 5.5;
+        } else {
+          this.flarePointLight.intensity = Math.max(0.0, (1.0 - (progress - 0.3) / 0.6) * 5.5);
+        }
+      }
+
+      // 4. Tween screen-space black UI plane to opacity 1.0 (Fade to Black) over final 500ms
+      if (progress >= 0.80 && this.screenOverlay) {
+        const fadeP = (progress - 0.80) / 0.20;
+        this.screenOverlay.material.opacity = Math.min(1.0, fadeP);
+      }
+
+      if (progress < 1.0) {
+        requestAnimationFrame(animateFlare);
+      } else {
+        // 5. Execute onCompleteCallback()
+        if (this.screenOverlay) {
+          this.screenOverlay.material.opacity = 1.0;
+        }
+        this.isFlashPaperActive = false;
+        if (this.introVoidGroup) {
+          this.introVoidGroup.visible = false;
+        }
+        if (onCompleteCallback) {
+          onCompleteCallback();
+        }
+      }
+    };
+
+    requestAnimationFrame(animateFlare);
   }
 
   skipCinematic() {
-    if (this.cinematicPhase === 'DONE') return;
-    this.cinematicPhase = 'PORTAL_WARP';
-    this.cinematicTime = 10.2;
-    if (!this.isDiskInserted && this.floppyDiskMesh) {
-      this.floppyDiskMesh.position.set(0.36, 0.82, -0.50);
-      this.isDiskInserted = true;
+    this.isFlashPaperActive = false;
+    if (this.introVoidGroup) this.introVoidGroup.visible = false;
+    if (this.screenOverlay) this.screenOverlay.material.opacity = 1.0;
+    if (this.onCinematicComplete) {
+      this.onCinematicComplete();
+    } else if (this.onHeadInMonitor) {
+      this.onHeadInMonitor();
     }
-    this.renderTitleScreen();
-    this.isBootComplete = true;
   }
 
   insertFloppyDisk(onInsertedCallback = null) {
@@ -1077,12 +1267,16 @@ export class RetroRoom {
     this.isDiskInserted = true;
 
     // Hide beacon ring & 3D prompt
-    const beacon = this.floppyDiskMesh.getObjectByName('beaconRing');
+    const beacon = this.floppyDiskMesh?.getObjectByName('beaconRing');
     if (beacon) beacon.visible = false;
-    const prompt = this.floppyDiskMesh.getObjectByName('diskPromptMesh');
+    const prompt = this.floppyDiskMesh?.getObjectByName('diskPromptMesh');
     if (prompt) prompt.visible = false;
 
     // Animate floppy disk flying from desk into 1541 drive slot over 550ms
+    if (!this.floppyDiskMesh) {
+      if (onInsertedCallback) onInsertedCallback();
+      return;
+    }
     const startPos = this.floppyDiskMesh.position.clone();
     const driveSlotFront = new THREE.Vector3(0.36, 0.84, -0.30);
     const driveSlotInserted = new THREE.Vector3(0.36, 0.82, -0.50);
@@ -1093,7 +1287,6 @@ export class RetroRoom {
     const animateDisk = (now) => {
       const elapsed = now - startTime;
       const progress = Math.min(1.0, elapsed / duration);
-      // Ease out cubic
       const ease = 1 - Math.pow(1 - progress, 3);
 
       if (ease < 0.5) {
@@ -1119,142 +1312,16 @@ export class RetroRoom {
   }
 
   update(time, deltaTime = 0.016) {
-    if (!this.roomGroup.visible) return;
-
-    this.cinematicTime += (deltaTime || 0.016);
+    if (!this.roomGroup.visible && !this.isFlashPaperActive) return;
 
     // 0. Update CRT Monitor Shader Uniforms
-    if (this.crtShaderMat && this.crtShaderMat.uniforms && this.crtShaderMat.uniforms.uTime) {
+    // Skip in VR mode — the screen uses MeshBasicMaterial which has no uniforms.
+    if (!this._isVRMode && this.crtShaderMat && this.crtShaderMat.uniforms && this.crtShaderMat.uniforms.uTime) {
       this.crtShaderMat.uniforms.uTime.value = time;
     }
 
-    // Cinematic State Machine:
-    // 1. DOLLY_TO_DESK (0.0s - 3.5s): Advance smoothly from back of room (z=2.6) to comfortable seated desk distance (z=0.52)
-    if (this.cinematicPhase === 'DOLLY_TO_DESK') {
-      const duration = 3.5;
-      const progress = Math.min(1.0, this.cinematicTime / duration);
-      const ease = progress * progress * (3 - 2 * progress); // Smoothstep
-
-      const currentZ = THREE.MathUtils.lerp(2.6, 0.52, ease);
-      if (this.xrRig) {
-        this.xrRig.setPosition(-0.10, 0, currentZ);
-      } else {
-        this.camera.position.set(-0.10, 1.22, currentZ);
-      }
-
-      // Look straight ahead at desk center framing C64, drive, and monitor
-      this.camera.lookAt(-0.10, 0.98, -0.55);
-
-      if (progress >= 1.0) {
-        this.cinematicPhase = 'LOOK_DOWN_DISK';
-      }
-    }
-    // 2. LOOK_DOWN_DISK (3.5s - 5.2s): Smoothly tilt gaze down at 5¼" floppy disk, trigger drive load
-    else if (this.cinematicPhase === 'LOOK_DOWN_DISK') {
-      const phaseTime = this.cinematicTime - 3.5;
-      const duration = 1.7;
-      const progress = Math.min(1.0, phaseTime / duration);
-      const ease = progress * progress * (3 - 2 * progress);
-
-      // Smoothly tilt attention down from desk center to floppy disk (0.14, 0.77, -0.38)
-      const lookDesk = new THREE.Vector3(-0.10, 0.98, -0.55);
-      const lookDisk = new THREE.Vector3(0.14, 0.77, -0.38);
-      const currentLook = new THREE.Vector3().lerpVectors(lookDesk, lookDisk, ease);
-      this.camera.lookAt(currentLook);
-
-      // Trigger floppy disk insertion
-      if (phaseTime >= 0.7 && !this.isDiskInserted) {
-        this.insertFloppyDisk();
-      }
-
-      if (progress >= 1.0) {
-        this.cinematicPhase = 'WATCH_BOOT_ANIMATION';
-      }
-    }
-    // 3. WATCH_BOOT_ANIMATION (5.2s - 10.2s): Look back up at CRT screen, play full on-screen animation
-    else if (this.cinematicPhase === 'WATCH_BOOT_ANIMATION') {
-      const bootTime = this.cinematicTime - 5.2;
-
-      // Smoothly tilt gaze back up from floppy disk to CRT monitor screen (-0.22, 1.15, -0.68)
-      const lookDisk = new THREE.Vector3(0.14, 0.77, -0.38);
-      const lookMonitor = new THREE.Vector3(-0.22, 1.12, -0.68);
-      const lookUpProgress = Math.min(1.0, bootTime / 0.8);
-      const lookUpEase = lookUpProgress * lookUpProgress * (3 - 2 * lookUpProgress);
-      const currentLook = new THREE.Vector3().lerpVectors(lookDisk, lookMonitor, lookUpEase);
-      this.camera.lookAt(currentLook);
-
-      // On-screen animation timeline:
-      if (bootTime < 0.8) {
-        this.updateCRTScreen('LOAD "Louis F Ham presents",8,1');
-      } else if (bootTime < 1.6) {
-        this.updateCRTScreen('LOAD "Louis F Ham presents",8,1\n\nSEARCHING FOR Louis F Ham presents');
-      } else if (bootTime < 2.4) {
-        this.updateCRTScreen('LOAD "Louis F Ham presents",8,1\n\nSEARCHING FOR Louis F Ham presents\nLOADING...');
-      } else if (bootTime < 3.2) {
-        this.updateCRTScreen('LOAD "Louis F Ham presents",8,1\n\nSEARCHING FOR Louis F Ham presents\nLOADING...\nREADY.\nRUN');
-      } else if (bootTime >= 3.2 && !this.isBootComplete) {
-        this.renderTitleScreen();
-        this.isBootComplete = true;
-      }
-
-      // Transition to portal opening at 10.2s
-      if (this.cinematicTime >= 10.2) {
-        this.cinematicPhase = 'PORTAL_WARP';
-      }
-    }
-    // 4. PORTAL_WARP (10.2s - 13.2s): Portal opens, player sucked in, 360° barrel roll, fade to black
-    else if (this.cinematicPhase === 'PORTAL_WARP') {
-      const warpTime = this.cinematicTime - 10.2;
-      const duration = 3.0; // 3.0s warp duration
-      const progress = Math.min(1.0, warpTime / duration);
-
-      // Gaze right into the singularity vortex on screen
-      this.camera.lookAt(-0.28, 1.15, -0.68);
-
-      if (this.portalMesh && this.portalShaderMat) {
-        this.portalMesh.visible = true;
-        this.portalShaderMat.uniforms.uTime.value = time;
-        this.portalShaderMat.uniforms.uProgress.value = Math.min(1.0, progress * 1.4);
-        const scale = THREE.MathUtils.lerp(0.2, 3.8, progress);
-        this.portalMesh.scale.set(scale, scale, scale);
-      }
-
-      if (this.particleVortex) {
-        this.particleVortex.visible = true;
-        this.particleVortex.update(deltaTime || 0.016, progress);
-      }
-
-      // Suck player forward through the monitor screen (z=0.52 -> z=-0.60)
-      const currentZ = THREE.MathUtils.lerp(0.52, -0.60, progress * progress);
-      const currentX = THREE.MathUtils.lerp(-0.10, -0.28, progress);
-      if (this.xrRig) {
-        this.xrRig.setPosition(currentX, 0, currentZ);
-      } else {
-        this.camera.position.set(currentX, 1.22, currentZ);
-      }
-
-      // Perspective 360° Barrel Roll (camera.rotation.z 0 to 2*PI)
-      this.camera.rotation.z = progress * Math.PI * 2.0;
-
-      // Smooth Fade to Black on screen overlay over final 40% of sequence
-      if (progress > 0.60 && this.screenOverlay) {
-        const fadeProgress = (progress - 0.60) / 0.40;
-        this.screenOverlay.material.opacity = Math.min(1.0, fadeProgress);
-      }
-
-      if (progress >= 1.0 && this.cinematicPhase !== 'DONE') {
-        this.cinematicPhase = 'DONE';
-        this.camera.rotation.z = 0; // Reset barrel roll
-        if (this.onCinematicComplete) {
-          this.onCinematicComplete();
-        } else if (this.onHeadInMonitor) {
-          this.onHeadInMonitor();
-        }
-      }
-    }
-
     // Pulse beacon ring & face prompt towards camera
-    if (!this.isDiskInserted && this.floppyDiskMesh) {
+    if (!this.isDiskInserted && this.floppyDiskMesh && this.roomGroup.visible) {
       const beacon = this.floppyDiskMesh.getObjectByName('beaconRing');
       if (beacon) {
         const s = 1.0 + Math.sin(time * 4) * 0.12;
@@ -1267,14 +1334,58 @@ export class RetroRoom {
     }
 
     // Animate Lava Lamp gentle pulse
-    if (this.lavaLampLight) {
+    if (this.lavaLampLight && this.roomGroup.visible) {
       this.lavaLampLight.intensity = 1.8 + Math.sin(time * 2.5) * 0.35;
     }
 
     // LED Flicker effect during drive read
-    if (this.isBooting && !this.isBootComplete && this.driveLedLight) {
+    if (this.isBooting && !this.isBootComplete && this.driveLedLight && this.roomGroup.visible) {
       this.driveLedLight.intensity = Math.random() > 0.3 ? 2.5 : 0.2;
     }
+  }
+
+  fadeInFromBlack(duration = 500, onComplete = null) {
+    if (!this.screenOverlay) {
+      if (onComplete) onComplete();
+      return;
+    }
+    this.isFadingIn = true;
+    this.screenOverlay.material.opacity = 1.0;
+    const startTime = performance.now();
+    const animateFade = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      this.screenOverlay.material.opacity = Math.max(0.0, 1.0 - progress);
+      if (progress < 1.0) {
+        requestAnimationFrame(animateFade);
+      } else {
+        this.screenOverlay.material.opacity = 0.0;
+        this.isFadingIn = false;
+        if (onComplete) onComplete();
+      }
+    };
+    requestAnimationFrame(animateFade);
+  }
+
+  fadeOutToBlack(duration = 500, onComplete = null) {
+    if (!this.screenOverlay) {
+      if (onComplete) onComplete();
+      return;
+    }
+    this.screenOverlay.material.opacity = 0.0;
+    const startTime = performance.now();
+    const animateFade = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      this.screenOverlay.material.opacity = Math.min(1.0, progress);
+      if (progress < 1.0) {
+        requestAnimationFrame(animateFade);
+      } else {
+        this.screenOverlay.material.opacity = 1.0;
+        if (onComplete) onComplete();
+      }
+    };
+    requestAnimationFrame(animateFade);
   }
 
   reset() {
@@ -1283,7 +1394,24 @@ export class RetroRoom {
     this.isBootComplete = false;
     this.cinematicPhase = 'IDLE';
     this.cinematicTime = 0.0;
+    this.isFlashPaperActive = false;
+    this.isFadingIn = false;
     this.camera.rotation.z = 0;
+
+    this.roomGroup.visible = true;
+    if (this.introVoidGroup) {
+      this.introVoidGroup.visible = false;
+    }
+
+    if (this.flareMesh) {
+      this.flareMesh.visible = false;
+    }
+    if (this.sparkParticles) {
+      this.sparkParticles.visible = false;
+    }
+    if (this.titleCardMesh) {
+      this.titleCardMesh.visible = false;
+    }
 
     if (this.portalMesh) {
       this.portalMesh.visible = false;
@@ -1319,5 +1447,51 @@ export class RetroRoom {
 
   setVisible(visible) {
     this.roomGroup.visible = visible;
+    if (!visible && this.introVoidGroup) {
+      this.introVoidGroup.visible = false;
+    }
+  }
+
+  /**
+   * Switch the CRT screen material for VR / non-VR rendering.
+   *
+   * WebXR stereo mode renders every mesh **twice per frame** (once per eye),
+   * doubling the fragment-shader cost.  The full CRT ShaderMaterial includes
+   * barrel distortion, 3× chromatic-aberration samples, sin(), pow(), and
+   * distance() — too expensive at 90 Hz on standalone Quest hardware.
+   *
+   * When `isVR` is true, the screen mesh is swapped to a `MeshBasicMaterial`
+   * backed by the same canvas texture.  The canvas already holds the current
+   * C64 screen content (BASIC boot, title screen, etc.) so visual fidelity of
+   * the screen content is fully preserved — only the post-process effects
+   * (scanlines, barrel curve, phosphor bloom) are suppressed inside the headset.
+   *
+   * The full shader is automatically restored when `isVR` becomes false
+   * (headset removed / browser tab regains focus).
+   *
+   * Called by XRManager on XR session start/end:
+   *   renderer.xr.addEventListener('sessionstart', () => retroRoom.setVRMode(true));
+   *   renderer.xr.addEventListener('sessionend',   () => retroRoom.setVRMode(false));
+   *
+   * @param {boolean} isVR
+   */
+  setVRMode(isVR) {
+    if (this._isVRMode === isVR) return; // No-op if already in the right state
+    this._isVRMode = isVR;
+
+    if (!this.crtScreenMesh || !this.crtTexture) return;
+
+    if (isVR) {
+      // Swap to the lightweight MeshBasicMaterial — single texture lookup, zero math.
+      if (!this._crtVRMat) {
+        // Lazily create once and reuse; shares the live canvas texture reference.
+        this._crtVRMat = CRTMonitorShader.createVRFallbackMaterial(this.crtTexture);
+      }
+      this.crtScreenMesh.material = this._crtVRMat;
+    } else {
+      // Restore the full CRT ShaderMaterial for Desktop rendering.
+      this.crtScreenMesh.material = this.crtShaderMat;
+    }
   }
 }
+

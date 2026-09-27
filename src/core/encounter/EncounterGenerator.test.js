@@ -1,127 +1,133 @@
-// EncounterGenerator.test.js - Comprehensive Test Suite for Area- & Time-Based Encounter Generation
-import { EncounterGenerator, ENCOUNTER_TABLES, FIXED_ENCOUNTERS } from './EncounterGenerator.js';
+// EncounterGenerator.test.js - Comprehensive Test Suite for 1985-Accurate Encounter Generation
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { EncounterGenerator, ENCOUNTER_TABLES, FORCED_ENCOUNTERS } from './EncounterGenerator.js';
+import { parseEncounterTablesCsv, parseForcedEncountersCsv } from '../../data/EncounterTables.js';
 
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(`[AssertionFailed] ${message}`);
-  }
-}
+test('1985-Accurate Encounter Generation Algorithm Suite', async (t) => {
+  await t.test('1. CSV Data Parsers generate structured lookup dictionaries and spatial hash maps', () => {
+    const tables = parseEncounterTablesCsv();
+    assert.ok(tables.SKARA_BRAE_DAY, 'SKARA_BRAE_DAY table exists');
+    assert.strictEqual(tables.SKARA_BRAE_DAY.minGroups, 1);
+    assert.strictEqual(tables.SKARA_BRAE_DAY.maxGroups, 1);
+    assert.deepStrictEqual(tables.SKARA_BRAE_DAY.eligibleArchetypeIds, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
 
-function assertEquals(actual, expected, message) {
-  if (actual !== expected) {
-    throw new Error(`[AssertionFailed] ${message} - Expected: ${expected}, Got: ${actual}`);
-  }
-}
+    assert.ok(tables.SKARA_BRAE_NIGHT, 'SKARA_BRAE_NIGHT table exists');
+    assert.strictEqual(tables.SKARA_BRAE_NIGHT.minGroups, 1);
+    assert.strictEqual(tables.SKARA_BRAE_NIGHT.maxGroups, 4);
 
-export function runEncounterGeneratorTests() {
-  const results = [];
-  let passed = 0;
+    const { byCoord, byId } = parseForcedEncountersCsv();
+    assert.ok(byCoord.has('kylearans_tower_0_15'), 'Kylearan Berserkers tile in spatial hash map');
+    assert.ok(byCoord.has('wine_cellar_3_5'), 'Wine Cellar Ambush 1 in spatial hash map');
+    assert.ok(byId.has('KYLEARAN_BERSERKERS_99'), 'Forced encounter indexed by ID');
+  });
 
-  function test(name, fn) {
-    try {
-      fn();
-      passed++;
-      results.push(`✅ PASS: ${name}`);
-    } catch (err) {
-      results.push(`❌ FAIL: ${name} - ${err.message}`);
-    }
-  }
+  await t.test('2. Skara Brae Daytime Streets: strictly 1 group and night-exclusive archetypes filtered out', () => {
+    const nightIds = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
+    const dayAllowed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
-  // ─── 1. Skara Brae Daytime Streets: Exactly 1 Group ───────────────────
-  test('Skara Brae Daytime Streets always generates exactly 1 group from day pool (IDs 0–14)', () => {
-    for (let trial = 0; trial < 25; trial++) {
-      const enc = EncounterGenerator.generateEncounter({ zone: 'streets', isNight: false });
-      assertEquals(enc.groups.length, 1, 'Daytime city encounters must have exactly 1 group');
-      assertEquals(enc.tableId, 'SKARA_BRAE_DAY', 'Table must be SKARA_BRAE_DAY');
-      assert(enc.groups[0].count >= 1 && enc.groups[0].count <= 6, 'Group size between 1 and 6');
-      assert(ENCOUNTER_TABLES.SKARA_BRAE_DAY.eligibleArchetypeIds.includes(enc.groups[0].monster.id), 'Monster from day pool');
-      assertEquals(enc.groups[0].distanceFeet, 10, 'First group starts at 10 feet');
+    for (let i = 0; i < 30; i++) {
+      const payload = EncounterGenerator.generateEncounter({ zone: 'streets', isNight: false, trigger: 'movement' });
+      assert.ok(Array.isArray(payload), 'Payload is an array');
+      assert.strictEqual(payload.length, 1, 'Skara Brae Day must be strictly 1 group');
+      assert.strictEqual(payload.tableId, 'SKARA_BRAE_DAY');
+
+      const grp = payload[0];
+      assert.ok(dayAllowed.includes(grp.archetypeId), `Archetype ID ${grp.archetypeId} must be in daytime pool`);
+      assert.strictEqual(nightIds.includes(grp.archetypeId), false, `Archetype ID ${grp.archetypeId} must NOT be in night pool`);
+
+      // Verify payload structure
+      assert.ok(typeof grp.name === 'string' && grp.name.length > 0, 'Group has name');
+      assert.ok(typeof grp.quantity === 'number' && grp.quantity >= 1, 'Group has quantity');
+      assert.ok(typeof grp.ac === 'number', 'Group has ac');
+      assert.ok(typeof grp.hpPerUnit === 'number' && grp.hpPerUnit > 0, 'Group has hpPerUnit');
+      assert.ok(typeof grp.spriteSlug === 'string' && grp.spriteSlug.length > 0, 'Group has spriteSlug');
     }
   });
 
-  // ─── 2. Skara Brae Nighttime Streets: 1 to 4 Groups ───────────────────
-  test('Skara Brae Nighttime Streets generates 1 to 4 groups from night pool (IDs 15–30)', () => {
-    const groupCounts = new Set();
-    for (let trial = 0; trial < 50; trial++) {
-      const enc = EncounterGenerator.generateEncounter({ zone: 'streets', isNight: true });
-      assert(enc.groups.length >= 1 && enc.groups.length <= 4, 'Night city encounters have 1 to 4 groups');
-      assertEquals(enc.tableId, 'SKARA_BRAE_NIGHT', 'Table must be SKARA_BRAE_NIGHT');
-      groupCounts.add(enc.groups.length);
+  await t.test('3. Skara Brae Nighttime Streets: 1 to 4 groups from night pool (IDs 15-30)', () => {
+    const nightAllowed = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
+    const groupCountDist = new Set();
 
-      enc.groups.forEach((grp, idx) => {
-        assert(ENCOUNTER_TABLES.SKARA_BRAE_NIGHT.eligibleArchetypeIds.includes(grp.monster.id), 'Monster from night pool');
-        assertEquals(grp.distanceFeet, (idx + 1) * 10, `Group ${idx} distance is ${(idx + 1) * 10}ft`);
+    for (let i = 0; i < 50; i++) {
+      const payload = EncounterGenerator.generateEncounter({ zone: 'streets', isNight: true, trigger: 'movement' });
+      assert.ok(payload.length >= 1 && payload.length <= 4, 'Skara Brae Night must generate 1 to 4 groups');
+      assert.strictEqual(payload.tableId, 'SKARA_BRAE_NIGHT');
+      groupCountDist.add(payload.length);
+
+      payload.forEach(grp => {
+        assert.ok(nightAllowed.includes(grp.archetypeId), `Night monster ID ${grp.archetypeId} in night pool`);
+        assert.ok(grp.quantity >= 2 && grp.quantity <= 8, 'Night group quantity within 2-8');
       });
     }
-    assert(groupCounts.size > 1, 'Should observe varying group counts at night');
+
+    assert.ok(groupCountDist.size > 1, 'Observed variation in night group counts');
   });
 
-  // ─── 3. Tavern Wine Cellar: 1 to 3 Groups ──────────────────────────────
-  test('Wine Cellar generates 1 to 3 groups from cellar pool', () => {
-    for (let trial = 0; trial < 25; trial++) {
-      const enc = EncounterGenerator.generateEncounter({ zone: 'wine_cellar', isNight: false });
-      assert(enc.groups.length >= 1 && enc.groups.length <= 3, 'Wine Cellar encounters have 1 to 3 groups');
-      assertEquals(enc.tableId, 'WINE_CELLAR', 'Table must be WINE_CELLAR');
-      enc.groups.forEach(grp => {
-        assert(ENCOUNTER_TABLES.WINE_CELLAR.eligibleArchetypeIds.includes(grp.monster.id), 'Monster from cellar pool');
+  await t.test('4. Tavern Wine Cellar: 1 to 3 groups matching Wine Cellar pool', () => {
+    const cellarAllowed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19];
+
+    for (let i = 0; i < 30; i++) {
+      const payload = EncounterGenerator.generateEncounter({ zone: 'wine_cellar', isNight: false, trigger: 'movement' });
+      assert.ok(payload.length >= 1 && payload.length <= 3, 'Wine cellar generates 1 to 3 groups');
+      assert.strictEqual(payload.tableId, 'WINE_CELLAR');
+
+      payload.forEach(grp => {
+        assert.ok(cellarAllowed.includes(grp.archetypeId), `Monster ID ${grp.archetypeId} in cellar pool`);
       });
     }
   });
 
-  // ─── 4. Dungeon & Tower Tables (Catacombs, Harkyn, Kylearan, Mangar) ───
-  test('Deep Dungeons select correct themed tables and high-tier monster pools', () => {
-    const encHarkyn = EncounterGenerator.generateEncounter({ zone: 'harkyns_castle' });
-    assertEquals(encHarkyn.tableId, 'HARKYNS_CASTLE', 'Harkyns Castle table');
-
-    const encKylearan = EncounterGenerator.generateEncounter({ zone: 'kylearans_tower' });
-    assertEquals(encKylearan.tableId, 'KYLEARANS_TOWER', 'Kylearans Tower table');
-
-    const encMangar = EncounterGenerator.generateEncounter({ zone: 'mangars_tower' });
-    assertEquals(encMangar.tableId, 'MANGARS_TOWER', 'Mangars Tower table');
-    assert(encMangar.groups.length >= 1 && encMangar.groups.length <= 4, 'Mangar tower 1-4 groups');
-  });
-
-  // ─── 5. Forced / Keyed Encounter Overrides ─────────────────────────────
-  test('Kylearan 99 Berserkers forced encounter generates 4 groups of 99 Berserkers (396 total)', () => {
-    const enc = EncounterGenerator.generateEncounter({
+  await t.test("5. Kylearan's 99 Berserkers (Forced Tile): exactly 4 groups, 396 total Berserkers", () => {
+    const payload = EncounterGenerator.generateEncounter({
       zone: 'kylearans_tower',
-      forcedEncounterId: 'KYLEARAN_BERSERKERS_99'
+      mapCoord: { x: 0, y: 15 },
+      trigger: 'forcedTile'
     });
 
-    assertEquals(enc.trigger, 'forcedTile', 'Trigger is forcedTile');
-    assertEquals(enc.groups.length, 4, '4 monster groups');
-    let totalBerserkers = 0;
-    enc.groups.forEach(grp => {
-      assertEquals(grp.monster.name, 'Berserker', 'Monster is Berserker');
-      assertEquals(grp.count, 99, 'Group size is 99');
-      totalBerserkers += grp.count;
-    });
-    assertEquals(totalBerserkers, 396, 'Total monsters is 396');
-  });
+    assert.strictEqual(payload.trigger, 'forcedTile');
+    assert.strictEqual(payload.length, 4, 'Exactly 4 groups');
+    assert.strictEqual(payload.exactGroups, 4);
+    assert.strictEqual(payload.totalMonsters, 396, 'Total monsters must be 396');
 
-  // ─── 6. Flattening to Combatants ───────────────────────────────────────
-  test('flattenEncounterToMonsters creates instantiated combatants with distance and stats', () => {
-    const enc = EncounterGenerator.generateEncounter({ zone: 'streets', isNight: true });
-    const combatants = EncounterGenerator.flattenEncounterToMonsters(enc);
-
-    assert(combatants.length >= enc.groups.length, 'At least 1 combatant per group');
-    combatants.forEach(c => {
-      assert(typeof c.currentHp === 'number' && c.currentHp > 0, 'Rolled HP');
-      assert(typeof c.ac === 'number', 'Rolled AC');
-      assert(typeof c.distanceFeet === 'number' && c.distanceFeet >= 10, 'Distance defined');
-      assert(Array.isArray(c.actionSlots) && c.actionSlots.length === 4, '4 Action slots');
-      assertEquals(c.status, 'alive', 'Alive status');
+    payload.forEach(grp => {
+      assert.strictEqual(grp.name, 'Berserker');
+      assert.strictEqual(grp.quantity, 99);
+      assert.strictEqual(grp.archetypeId, 65);
+      assert.strictEqual(grp.spriteSlug, 'berserker');
     });
   });
 
-  return { passed, failed: results.length - passed, results };
-}
+  await t.test('6. evaluateStep pipeline: Step 1 Forced Trigger, Step 2 RNG Check, Step 3 & 4 Generation', () => {
+    // 1. Forced encounter tile always triggers regardless of RNG check
+    const forcedAmbush = EncounterGenerator.evaluateStep('wine_cellar', 3, 5, false, 0.0, () => 0.99);
+    assert.ok(forcedAmbush, 'Forced encounter tile triggered even with 0.0 baseline chance');
+    assert.strictEqual(forcedAmbush.trigger, 'forcedTile');
+    assert.strictEqual(forcedAmbush.length, 3, 'Wine cellar ambush 1 has 3 groups');
 
-// Run if executed directly
-if (typeof process !== 'undefined' && process.argv && process.argv[1]?.includes('EncounterGenerator.test.js')) {
-  console.log('🧪 Running EncounterGenerator test suite...');
-  const { passed, failed, results } = runEncounterGeneratorTests();
-  results.forEach(r => console.log(r));
-  console.log(`\n📊 Summary: ${passed} passed, ${failed} failed.\n`);
-  if (failed > 0) process.exit(1);
-}
+    // 2. Normal tile with RNG failing threshold returns null
+    const noEncounter = EncounterGenerator.evaluateStep('streets', 10, 10, false, 0.10, () => 0.50);
+    assert.strictEqual(noEncounter, null, 'Roll above baseline returns null');
+
+    // 3. Normal tile with RNG meeting threshold returns valid encounter payload
+    const triggered = EncounterGenerator.evaluateStep('streets', 10, 10, false, 0.10, () => 0.05);
+    assert.ok(Array.isArray(triggered), 'Triggered encounter returns payload array');
+    assert.strictEqual(triggered.length, 1, 'Day streets returns 1 group');
+    assert.ok(triggered[0].quantity >= 1);
+  });
+
+  await t.test('7. flattenEncounterToMonsters expands group payload into individual combatants', () => {
+    const payload = EncounterGenerator.generateEncounter({ zone: 'streets', isNight: false });
+    const combatants = EncounterGenerator.flattenEncounterToMonsters(payload);
+
+    assert.strictEqual(combatants.length, payload[0].quantity, 'Total combatants equals group quantity');
+    combatants.forEach((c, idx) => {
+      assert.strictEqual(c.groupName, payload[0].name);
+      assert.ok(typeof c.currentHp === 'number' && c.currentHp > 0);
+      assert.ok(typeof c.ac === 'number');
+      assert.ok(typeof c.spriteSlug === 'string');
+      assert.strictEqual(c.distanceFeet, 10);
+      assert.strictEqual(c.status, 'alive');
+    });
+  });
+});

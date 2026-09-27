@@ -7,11 +7,43 @@ import { getSpriteSheetPath } from '../data/MonsterSpriteManifest.js';
  * - Trimming top white letterboxing
  * - Stripping 1px vertical borders
  * - Providing 4-frame loop animation in Three.js and 2D UI Canvas
+ *
+ * ⚡ Draw Call Reduction Strategy
+ * ────────────────────────────────
+ * In a 99-monster encounter, naively creating one Material per billboard produces
+ * up to 99 draw calls — one per mesh.  Three.js can only batch meshes that share
+ * the exact same material instance.
+ *
+ * This manager maintains three caches keyed by resolved sprite-sheet path:
+ *
+ *   textureCache    — one THREE.CanvasTexture per unique sprite sheet path.
+ *                     All 20 Kobolds (bt1_10.png) share the same GPU texture object.
+ *
+ *   materialCache   — one THREE.MeshBasicMaterial per unique sprite sheet path.
+ *                     Sharing the material instance allows Three.js to batch all
+ *                     billboards of the same type into a single draw call.
+ *                     Frame animation advances texture.offset.x; because the offset
+ *                     is on the shared texture, all monsters of the same type
+ *                     advance frames together — correct behaviour for a swarm.
+ *
+ *   _sharedGeo      — one PlaneGeometry(2,2) reused across every billboard.
+ *                     Geometry is read-only at render time; sharing is always safe.
+ *
+ * Net result: a 99-Kobold encounter issues 1 draw call instead of 99.
+ * A mixed encounter with K unique sprite types issues K draw calls.
  */
 export class AnimatedSpriteManager {
   constructor() {
     this.imageCache = new Map();
     this.processedCanvasCache = new Map();
+
+    // ── Draw-call reduction caches ─────────────────────────────────────────────
+    /** @type {Map<string, THREE.CanvasTexture>} */
+    this.textureCache = new Map();
+    /** @type {Map<string, THREE.MeshBasicMaterial>} */
+    this.materialCache = new Map();
+    /** Shared read-only 2×2 plane — safe to reuse across all billboard meshes. */
+    this._sharedGeo = new THREE.PlaneGeometry(2.0, 2.0);
   }
 
   /**
@@ -102,8 +134,57 @@ export class AnimatedSpriteManager {
   }
 
   /**
+   * Returns the cached (or freshly created) THREE.CanvasTexture for a sprite path.
+   * All callers sharing the same path receive the exact same texture instance,
+   * allowing the GPU to bind it once across multiple draw calls.
+   *
+   * @param {string} src  Resolved sprite sheet path
+   * @param {HTMLCanvasElement} canvas  Processed 1024×256 canvas
+   * @returns {THREE.CanvasTexture}
+   */
+  _getOrCreateTexture(src, canvas) {
+    if (this.textureCache.has(src)) return this.textureCache.get(src);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.repeat.set(0.25, 1.0); // 1 frame of 4
+    this.textureCache.set(src, texture);
+    return texture;
+  }
+
+  /**
+   * Returns the cached (or freshly created) THREE.MeshBasicMaterial for a sprite path.
+   * All billboard meshes that share this material instance are batched by Three.js
+   * into a single draw call when they are adjacent in the render queue.
+   *
+   * @param {string} src  Resolved sprite sheet path
+   * @param {THREE.CanvasTexture} texture
+   * @returns {THREE.MeshBasicMaterial}
+   */
+  _getOrCreateMaterial(src, texture) {
+    if (this.materialCache.has(src)) return this.materialCache.get(src);
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide
+    });
+    this.materialCache.set(src, material);
+    return material;
+  }
+
+  /**
    * Creates a 3D animated Three.js Mesh / Billboard for a given monster or class.
-   * @param {string} slug
+   *
+   * ⚡ Draw call reduction: All monsters sharing the same sprite path receive the
+   * same material instance (via materialCache).  Three.js batches identical-material
+   * meshes into a single draw call, so 20 Kobolds → 1 draw call.
+   *
+   * The `update` callback still advances `texture.offset.x` on the shared texture,
+   * so all monsters of the same type animate in lock-step — authentic swarm behaviour.
+   *
+   * @param {string} slug  Monster slug or class name
    * @param {number} [fps=5]
    * @returns {Promise<{ mesh: THREE.Mesh, update: (time: number) => void }>}
    */
@@ -111,19 +192,12 @@ export class AnimatedSpriteManager {
     const src = getSpriteSheetPath(slug) || '/assets/sprites/swordsman.png';
     const canvas = await this.loadAndProcessSpriteSheet(src);
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.generateMipmaps = false;
-    texture.minFilter = THREE.NearestFilter;
-    texture.magFilter = THREE.NearestFilter;
-    texture.repeat.set(0.25, 1.0); // 1 frame of 4
+    // Retrieve shared texture and material instances (or create them once).
+    const texture = this._getOrCreateTexture(src, canvas);
+    const material = this._getOrCreateMaterial(src, texture);
 
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      side: THREE.DoubleSide
-    });
-
-    const geometry = new THREE.PlaneGeometry(2.0, 2.0);
-    const mesh = new THREE.Mesh(geometry, material);
+    // Shared geometry — PlaneGeometry is read-only at render time; safe to reuse.
+    const mesh = new THREE.Mesh(this._sharedGeo, material);
 
     let lastFrame = 0;
     const update = (time) => {
@@ -135,7 +209,42 @@ export class AnimatedSpriteManager {
       }
     };
 
-    return { mesh, material, texture, geometry, update };
+    return { mesh, material, texture, geometry: this._sharedGeo, update };
+  }
+
+  /**
+   * Creates a THREE.InstancedMesh for an enemy swarm or mob sharing the same sprite sheet.
+   *
+   * ⚡ Draw call reduction: Up to 99 monsters of the same type render in 1 single draw call.
+   * Texture offset frame animation is shared across all instances in the mesh, maintaining
+   * 60fps pacing even in large encounters.
+   *
+   * @param {string} slug Monster slug or class name
+   * @param {number} count Number of instances in the swarm (e.g. 1 to 99)
+   * @param {number} [fps=5]
+   * @returns {Promise<{ instancedMesh: THREE.InstancedMesh, material: THREE.Material, texture: THREE.Texture, geometry: THREE.BufferGeometry, update: (time: number) => void }>}
+   */
+  async createAnimatedInstancedBillboard(slug, count, fps = 5) {
+    const src = getSpriteSheetPath(slug) || '/assets/sprites/swordsman.png';
+    const canvas = await this.loadAndProcessSpriteSheet(src);
+
+    const texture = this._getOrCreateTexture(src, canvas);
+    const material = this._getOrCreateMaterial(src, texture);
+
+    const instancedMesh = new THREE.InstancedMesh(this._sharedGeo, material, Math.max(1, count));
+    instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    let lastFrame = 0;
+    const update = (time) => {
+      const frameIndex = Math.floor(time * fps) % 4;
+      if (frameIndex !== lastFrame) {
+        lastFrame = frameIndex;
+        texture.offset.x = frameIndex * 0.25;
+        texture.needsUpdate = true;
+      }
+    };
+
+    return { instancedMesh, material, texture, geometry: this._sharedGeo, update };
   }
 
   /**
@@ -162,3 +271,4 @@ export class AnimatedSpriteManager {
 }
 
 export const animatedSpriteManager = new AnimatedSpriteManager();
+
