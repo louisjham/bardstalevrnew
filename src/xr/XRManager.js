@@ -26,6 +26,7 @@ export class XRManager {
 
     this.workingMatrix = new THREE.Matrix4();
     this.isVRActive = false;
+    this.areControllersVisible = true;
 
     this.initXR();
     this.initDesktopFallback();
@@ -175,6 +176,29 @@ export class XRManager {
     this.orbitControls.maxDistance = 10.0;
   }
 
+  /**
+   * Set visibility of VR controllers, controller grips/rays, and hands.
+   * Used to hide player hands/pointers during cinematic intro sequences.
+   * @param {boolean} visible
+   */
+  setControllersVisible(visible) {
+    this.areControllersVisible = visible;
+    this._applyControllersVisibility();
+  }
+
+  _applyControllersVisibility() {
+    const vis = this.isVRActive && this.areControllersVisible;
+    if (this.controllers) {
+      this.controllers.forEach(c => { if (c) c.visible = vis; });
+    }
+    if (this.controllerGrips) {
+      this.controllerGrips.forEach(g => { if (g) g.visible = vis; });
+    }
+    if (this.hands) {
+      this.hands.forEach(h => { if (h) h.visible = vis; });
+    }
+  }
+
   // Trigger haptic pulse on controller
   triggerHaptics(controllerIndex = 0, intensity = 0.8, duration = 100) {
     const session = this.renderer.xr.getSession();
@@ -216,6 +240,7 @@ export class XRManager {
   }
 
   update() {
+    this._applyControllersVisibility();
     if (!this.isVRActive && this.orbitControls) {
       this.orbitControls.update();
     }

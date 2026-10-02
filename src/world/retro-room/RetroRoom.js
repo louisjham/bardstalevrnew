@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TextureGenerator } from '../../textures/TextureGenerator.js';
 import { CRTMonitorShader } from '../../shaders/CRTMonitorShader.js';
 import { VortexPortalShader } from '../../shaders/VortexPortalShader.js';
+import { createCommodore64, createDiskDrive1541, createJoystickAtari, createLavaLamp } from './RetroPropsFactory.js';
 
 export class RetroRoom {
   constructor(scene, camera, onHeadInMonitor, xrRig = null) {
@@ -43,6 +44,16 @@ export class RetroRoom {
     this.cinematicPhase = 'IDLE';
     this.cinematicTime = 0.0;
     this.onCinematicComplete = null;
+    // Generation counter: incremented on every triggerCinematicIntro() call.
+    // Each RAF loop closure captures the generation at start time; if the counter
+    // has advanced by the time a tick fires, the old loop exits immediately.
+    // This prevents two concurrent RAF loops from fighting over shared state when
+    // the player restarts the game mid-cinematic.
+    this._cinematicGeneration = 0;
+    // Separate generation counter for fade-in / fade-out RAF loops.
+    // Guarantees only one fade loop is active at any time regardless of how
+    // quickly state transitions trigger fade calls.
+    this._fadeGeneration = 0;
 
     this.crtCanvasCtx = null;
     this.crtTexture = null;
@@ -490,34 +501,8 @@ export class RetroRoom {
     this.roomGroup.add(clockFace);
 
     // 4. Glowing 1990s Lava Lamp on Dresser
-    const lavaGroup = new THREE.Group();
+    const lavaGroup = createLavaLamp();
     lavaGroup.position.set(2.65, 0.9, 0.55);
-
-    const lavaBase = new THREE.Mesh(
-      new THREE.ConeGeometry(0.08, 0.12, 16),
-      new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.2 })
-    );
-    lavaGroup.add(lavaBase);
-
-    const lavaGlass = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.07, 0.32, 16),
-      new THREE.MeshStandardMaterial({
-        color: 0xf97316,
-        emissive: 0xe11d48,
-        emissiveIntensity: 0.9,
-        transparent: true,
-        opacity: 0.85
-      })
-    );
-    lavaGlass.position.y = 0.22;
-    lavaGroup.add(lavaGlass);
-
-    const lavaCap = new THREE.Mesh(
-      new THREE.ConeGeometry(0.05, 0.08, 16),
-      new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8 })
-    );
-    lavaCap.position.y = 0.42;
-    lavaGroup.add(lavaCap);
 
     this.lavaLampLight = new THREE.PointLight(0xf43f5e, 1.8, 3.0);
     this.lavaLampLight.position.set(0, 0.22, 0);
@@ -610,127 +595,21 @@ export class RetroRoom {
 
   initCommodore64AndTV() {
     // 1. COMMODORE 64 "BREADBOX" CHASSIS
-    const c64CaseTex = TextureGenerator.createC64CaseTexture();
-    const c64CaseMat = new THREE.MeshStandardMaterial({ map: c64CaseTex, roughness: 0.55 });
-    const keyboardTex = TextureGenerator.createC64KeyboardTexture();
-    const keyboardMat = new THREE.MeshStandardMaterial({ map: keyboardTex, roughness: 0.6 });
-
-    const c64Group = new THREE.Group();
+    const c64Group = createCommodore64();
     c64Group.position.set(-0.18, 0.75, -0.42);
-
-    // Rounded wedge base
-    const baseWedge = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.06, 0.22), c64CaseMat);
-    baseWedge.position.set(0, 0.03, 0);
-    c64Group.add(baseWedge);
-
-    // Slanted Keyboard Tray
-    const slantTray = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.03, 0.16), c64CaseMat);
-    slantTray.rotation.x = -Math.PI / 16;
-    slantTray.position.set(0, 0.06, 0.02);
-    c64Group.add(slantTray);
-
-    // Detailed PETSCII Keyboard Keys
-    const keysMesh = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.02, 0.13), keyboardMat);
-    keysMesh.rotation.x = -Math.PI / 16;
-    keysMesh.position.set(0, 0.08, 0.02);
-    c64Group.add(keysMesh);
-
-    // Iconic Rainbow Commodore Badge Logo (C=) on top-left
-    const badgeCanvas = document.createElement('canvas');
-    badgeCanvas.width = 128;
-    badgeCanvas.height = 32;
-    const bCtx = badgeCanvas.getContext('2d');
-    bCtx.fillStyle = '#b89f80';
-    bCtx.fillRect(0, 0, 128, 32);
-    // Rainbow stripes
-    const rainbow = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
-    rainbow.forEach((color, idx) => {
-      bCtx.fillStyle = color;
-      bCtx.fillRect(4 + idx * 8, 8, 6, 16);
-    });
-    bCtx.fillStyle = '#1e1b4b';
-    bCtx.font = 'bold 13px sans-serif';
-    bCtx.fillText("commodore 64", 48, 21);
-
-    const badgeMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.1, 0.025),
-      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(badgeCanvas) })
-    );
-    badgeMesh.rotation.x = -Math.PI / 2;
-    badgeMesh.position.set(-0.12, 0.065, -0.075);
-    c64Group.add(badgeMesh);
-
-    // Red Power LED on top right
-    const c64Led = new THREE.Mesh(
-      new THREE.SphereGeometry(0.008, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xef4444 })
-    );
-    c64Led.position.set(0.18, 0.065, -0.075);
-    c64Group.add(c64Led);
-
+    c64Group.rotation.y = Math.PI;
     this.roomGroup.add(c64Group);
 
     // 2. COMMODORE 1541 DISK DRIVE
-    const driveGroup = new THREE.Group();
+    const driveGroup = createDiskDrive1541();
     driveGroup.position.set(0.36, 0.75, -0.5);
-
-    const drive1541Tex = TextureGenerator.create1541DriveTexture();
-    const driveMat = new THREE.MeshStandardMaterial({ map: drive1541Tex, roughness: 0.55 });
-    const driveBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.24, 0.14, 0.38),
-      driveMat
-    );
-    driveBody.position.y = 0.07;
-    driveGroup.add(driveBody);
-
-    // Top cooling vent slats
-    for (let i = -3; i <= 3; i++) {
-      const vent = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, 0.005, 0.015),
-        new THREE.MeshBasicMaterial({ color: 0x334155 })
-      );
-      vent.position.set(0, 0.142, i * 0.035 - 0.05);
-      driveGroup.add(vent);
-    }
-
-    // Front Faceplate & 5¼" Drive Slot
-    const slotMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.17, 0.012, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0x0f172a })
-    );
-    slotMesh.position.set(0, 0.07, 0.191);
-    driveGroup.add(slotMesh);
-
-    // Drive Door Rotating Locking Lever (Horizontal Latch)
-    const latchMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.05, 0.018, 0.015),
-      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.6 })
-    );
-    latchMesh.position.set(0.06, 0.07, 0.195);
-    driveGroup.add(latchMesh);
-
-    // Power (Green) & Drive Activity (Red) LEDs
-    const greenLed = new THREE.Mesh(
-      new THREE.SphereGeometry(0.006, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0x22c55e })
-    );
-    greenLed.position.set(-0.08, 0.11, 0.195);
-    driveGroup.add(greenLed);
 
     this.driveLedLight = new THREE.PointLight(0xef4444, 0, 0.8);
     this.driveLedLight.position.set(0.08, 0.11, 0.195);
     driveGroup.add(this.driveLedLight);
 
-    const redLedMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.006, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xef4444 })
-    );
-    redLedMesh.position.set(0.08, 0.11, 0.195);
-    driveGroup.add(redLedMesh);
-
     this.diskDriveMesh = driveGroup;
     this.roomGroup.add(driveGroup);
-    this.interactableObjects.push(driveBody);
 
     // 3. BLACK SERIAL IEC CABLE & POWER CABLES
     const cableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
@@ -1132,127 +1011,325 @@ export class RetroRoom {
   }
 
   startCinematicSequence(onComplete = null) {
-    this.triggerFlashPaperIntro(onComplete || this.onHeadInMonitor);
+    this.triggerCinematicIntro(onComplete || this.onHeadInMonitor);
   }
 
-  triggerFlashPaperIntro(onCompleteCallback) {
+  /**
+   * Multi-phase automated cinematic intro sequence (zero player interaction).
+   * Stationary camera — no auto-walk or barrel roll (WebXR motion-sickness safe).
+   *
+   * Phase 1  FADE_IN        (1500ms)  Black → reveal 1980s bedroom, C64 desk in front
+   * Phase 2  DISK_INSERT     (800ms)  Floppy disk auto-slides into 1541 drive
+   * Phase 3  BOOT_SEQUENCE  (3500ms)  CRT blinks on, types C64 BASIC boot + LOAD command
+   * Phase 4  FADE_TO_BLACK   (800ms)  Screen fades to solid black
+   * Phase 5  TITLE_CARD     (2800ms)  Title card ignites with vortex flash-paper flare
+   * Phase 6  TRANSITION               onCompleteCallback() → Tavern
+   */
+  triggerCinematicIntro(onCompleteCallback) {
     this.reset();
     this.isFlashPaperActive = true;
+    this.cinematicPhase = 'FADE_IN';
     this.onCinematicComplete = onCompleteCallback || this.onHeadInMonitor;
 
-    // 1. Spawn the player stationary in the dark void
+    // Stamp a new generation so any in-flight RAF loop from a previous call
+    // detects the mismatch on its next tick and exits cleanly.
+    const myGeneration = ++this._cinematicGeneration;
+
+    // 1. Position player stationary at desk with elevated view (raised ~2ft to 1.79m) angled down at C64
     if (this.xrRig) {
-      this.xrRig.setPosition(0, 0, 0);
+      this.xrRig.setPosition(0, 0, 0.15);
       this.xrRig.setYRotation(0);
     }
-    this.camera.position.set(0, 1.18, 0);
-    this.camera.rotation.set(0, 0, 0);
+    this.camera.position.set(0, 1.79, 0);
+    this.camera.rotation.set(-0.20, 0, 0);
 
-    // Hide bedroom enclosure, show dark void
-    this.roomGroup.visible = false;
+    // Show the bedroom — player sees the full 3D retro room
+    this.roomGroup.visible = true;
     if (this.introVoidGroup) {
-      this.introVoidGroup.visible = true;
+      this.introVoidGroup.visible = false;
     }
 
+    // Start fully black — we will fade in
     if (this.screenOverlay) {
-      this.screenOverlay.material.opacity = 0.0;
+      this.screenOverlay.material.opacity = 1.0;
     }
 
-    // 2. Ignite the existing flash-paper title flare effect
-    if (this.flareMesh) this.flareMesh.visible = true;
-    if (this.sparkParticles) this.sparkParticles.visible = true;
-    if (this.titleCardMesh) {
-      this.titleCardMesh.visible = true;
-      this.titleCardMat.opacity = 0.0;
-      this.titleCardMesh.scale.set(0.85, 0.85, 0.85);
+    // Ensure CRT starts ON with BASIC prompt active
+    this.updateCRTScreen("**** COMMODORE 64 BASIC V2 ****\n\n 64K RAM SYSTEM  38911 BASIC BYTES FREE\n\nREADY.\n");
+
+    // Hide the interactive beacon/prompt on the floppy disk (not needed for cinematic)
+    if (this.floppyDiskMesh) {
+      const beacon = this.floppyDiskMesh.getObjectByName('beaconRing');
+      if (beacon) beacon.visible = false;
+      const prompt = this.floppyDiskMesh.getObjectByName('diskPromptMesh');
+      if (prompt) prompt.visible = false;
     }
 
-    // 3. Wait ~2500ms for the flare to peak and dissipate
-    const duration = 2500;
-    const startTime = performance.now();
+    // ── Phase timing constants (ms) ──
+    const FADE_IN_DUR     = 1500;
+    const DISK_PAUSE      = 400;   // brief pause after fade-in before disk moves
+    const DISK_INSERT_DUR = 800;
+    const BOOT_DELAY      = 300;   // pause after disk insert before CRT blinks on
+    const BOOT_DUR        = 3500;
+    const TITLE_DUR       = 2800;  // title card display duration on CRT monitor
+    const FADE_OUT_DUR    = 800;
 
-    const animateFlare = (now) => {
-      if (!this.isFlashPaperActive) return;
+    const globalStart = performance.now();
 
-      const elapsed = now - startTime;
-      const progress = Math.min(1.0, elapsed / duration);
-      const timeSec = elapsed * 0.001;
+    // ── Boot text lines typed incrementally on the CRT ──
+    const bootLines = [
+      '',
+      '    **** COMMODORE 64 BASIC V2 ****',
+      '',
+      ' 64K RAM SYSTEM  38911 BASIC BYTES FREE',
+      '',
+      'READY.',
+      'LOAD "Louis F Ham presents",8,1',
+      '',
+      'SEARCHING FOR Louis F Ham presents',
+      'LOADING',
+      'READY.',
+      'RUN',
+    ];
 
-      // Update flare shader uniforms
-      if (this.flareShaderMat?.uniforms) {
-        this.flareShaderMat.uniforms.uTime.value = timeSec;
-        if (progress < 0.35) {
-          this.flareShaderMat.uniforms.uProgress.value = progress / 0.35;
-        } else {
-          this.flareShaderMat.uniforms.uProgress.value = Math.max(0.0, 1.0 - (progress - 0.35) / 0.55);
-        }
-      }
+    // Pre-compute cumulative phase boundaries
+    const tFadeEnd     = FADE_IN_DUR;
+    const tDiskStart   = tFadeEnd + DISK_PAUSE;
+    const tDiskEnd     = tDiskStart + DISK_INSERT_DUR;
+    const tBootStart   = tDiskEnd + BOOT_DELAY;
+    const tBootEnd     = tBootStart + BOOT_DUR;
+    const tTitleEnd    = tBootEnd + TITLE_DUR;
+    const tFadeOutEnd  = tTitleEnd + FADE_OUT_DUR;
 
-      // Update particle vortex
-      if (this.sparkParticles?.update) {
-        this.sparkParticles.update(0.016, progress);
-      }
+    // Disk insert positions
+    const diskStartPos = this.floppyDiskMesh
+      ? this.floppyDiskMesh.position.clone()
+      : null;
+    const driveSlotFront = new THREE.Vector3(0.36, 0.84, -0.30);
+    const driveSlotInserted = new THREE.Vector3(0.36, 0.82, -0.50);
 
-      // Title Card Animation (flash paper ignition -> display -> dissipate)
-      if (this.titleCardMat && this.titleCardMesh) {
-        if (progress < 0.25) {
-          // Rapid flash paper ignition
-          const p = progress / 0.25;
-          this.titleCardMat.opacity = p;
-          const s = 0.85 + 0.2 * p;
-          this.titleCardMesh.scale.set(s, s, s);
-        } else if (progress < 0.65) {
-          // Peak display
-          this.titleCardMat.opacity = 1.0;
-          this.titleCardMesh.scale.set(1.05, 1.05, 1.05);
-        } else if (progress < 0.82) {
-          // Flash paper burning away like nitrocellulose
-          const p = (progress - 0.65) / 0.17;
-          this.titleCardMat.opacity = Math.max(0.0, 1.0 - p);
-          const s = 1.05 + 0.15 * p;
-          this.titleCardMesh.scale.set(s, s, s);
-        } else {
-          this.titleCardMat.opacity = 0.0;
-        }
-      }
+    const animateCinematic = (now) => {
+      // Exit immediately if a newer cinematic was started or cleared
+      if (this._cinematicGeneration !== myGeneration || !this.isFlashPaperActive) return;
 
-      // Dynamic flare light
-      if (this.flarePointLight) {
-        if (progress < 0.3) {
-          this.flarePointLight.intensity = (progress / 0.3) * 5.5;
-        } else {
-          this.flarePointLight.intensity = Math.max(0.0, (1.0 - (progress - 0.3) / 0.6) * 5.5);
-        }
-      }
+      const elapsed = now - globalStart;
 
-      // 4. Tween screen-space black UI plane to opacity 1.0 (Fade to Black) over final 500ms
-      if (progress >= 0.80 && this.screenOverlay) {
-        const fadeP = (progress - 0.80) / 0.20;
-        this.screenOverlay.material.opacity = Math.min(1.0, fadeP);
-      }
-
-      if (progress < 1.0) {
-        requestAnimationFrame(animateFlare);
-      } else {
-        // 5. Execute onCompleteCallback()
+      // ═══════════════════════════════════════════════════════════
+      // Phase 1: FADE IN from black to reveal the 3D 1980s bedroom
+      // ═══════════════════════════════════════════════════════════
+      if (elapsed < tFadeEnd) {
+        this.cinematicPhase = 'FADE_IN';
+        const p = elapsed / FADE_IN_DUR;
         if (this.screenOverlay) {
-          this.screenOverlay.material.opacity = 1.0;
+          this.screenOverlay.material.opacity = Math.max(0.0, 1.0 - p);
         }
-        this.isFlashPaperActive = false;
-        if (this.introVoidGroup) {
-          this.introVoidGroup.visible = false;
+        requestAnimationFrame(animateCinematic);
+        return;
+      }
+
+      if (this.screenOverlay && this.cinematicPhase === 'FADE_IN') {
+        this.screenOverlay.material.opacity = 0.0;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // Phase 2: DISK INSERT — floppy auto-slides into 1541 drive
+      // ═══════════════════════════════════════════════════════════
+      if (elapsed < tDiskEnd) {
+        this.cinematicPhase = 'DISK_INSERT';
+
+        if (elapsed >= tDiskStart && this.floppyDiskMesh && diskStartPos) {
+          const diskProgress = Math.min(1.0, (elapsed - tDiskStart) / DISK_INSERT_DUR);
+          const ease = 1 - Math.pow(1 - diskProgress, 3);
+
+          if (ease < 0.5) {
+            const p1 = ease / 0.5;
+            this.floppyDiskMesh.position.lerpVectors(diskStartPos, driveSlotFront, p1);
+          } else {
+            const p2 = (ease - 0.5) / 0.5;
+            this.floppyDiskMesh.position.lerpVectors(driveSlotFront, driveSlotInserted, p2);
+          }
         }
-        if (onCompleteCallback) {
-          onCompleteCallback();
+        requestAnimationFrame(animateCinematic);
+        return;
+      }
+
+      if (this.cinematicPhase === 'DISK_INSERT') {
+        if (this.floppyDiskMesh) {
+          this.floppyDiskMesh.position.copy(driveSlotInserted);
         }
+        this.isDiskInserted = true;
+        this.isBooting = true;
+        if (this.driveLedLight) this.driveLedLight.intensity = 2.0;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // Phase 3: BOOT SEQUENCE — CRT types BASIC load & run commands
+      // ═══════════════════════════════════════════════════════════
+      if (elapsed < tBootEnd) {
+        this.cinematicPhase = 'BOOT_SEQUENCE';
+        const bootElapsed = elapsed - tBootStart;
+        const bootProgress = Math.min(1.0, bootElapsed / BOOT_DUR);
+
+        if (bootElapsed < 120) {
+          const blinkPhase = bootElapsed / 120;
+          if (blinkPhase < 0.3) {
+            this._renderCRTOff();
+          } else if (blinkPhase < 0.5) {
+            this._renderCRTStatic();
+          } else {
+            this._renderCRTBootText(bootLines, bootProgress);
+          }
+        } else {
+          this._renderCRTBootText(bootLines, bootProgress);
+        }
+
+        requestAnimationFrame(animateCinematic);
+        return;
+      }
+
+      if (this.cinematicPhase === 'BOOT_SEQUENCE') {
+        this.renderTitleScreen();
+        this.isBooting = false;
+        this.isBootComplete = true;
+        if (this.driveLedLight) this.driveLedLight.intensity = 0.0;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // Phase 4: TITLE SCREEN — Display C64 Game Title Card on CRT
+      // ═══════════════════════════════════════════════════════════
+      if (elapsed < tTitleEnd) {
+        this.cinematicPhase = 'TITLE_CARD';
+        this.renderTitleScreen();
+        requestAnimationFrame(animateCinematic);
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // Phase 5: FADE TO BLACK — Smooth scene transition fade
+      // ═══════════════════════════════════════════════════════════
+      if (elapsed < tFadeOutEnd) {
+        this.cinematicPhase = 'FADE_TO_BLACK';
+        const fadeP = (elapsed - tTitleEnd) / FADE_OUT_DUR;
+        if (this.screenOverlay) {
+          this.screenOverlay.material.opacity = Math.min(1.0, fadeP);
+        }
+        requestAnimationFrame(animateCinematic);
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // Phase 6: TRANSITION — Complete intro & enter Tavern
+      // ═══════════════════════════════════════════════════════════
+      this.cinematicPhase = 'COMPLETE';
+      if (this.screenOverlay) {
+        this.screenOverlay.material.opacity = 1.0;
+      }
+      this.isFlashPaperActive = false;
+      if (onCompleteCallback) {
+        onCompleteCallback();
       }
     };
 
-    requestAnimationFrame(animateFlare);
+    requestAnimationFrame(animateCinematic);
+  }
+
+  /**
+   * Render the CRT screen as powered off (dark charcoal).
+   */
+  _renderCRTOff() {
+    if (!this.crtCanvasCtx || !this.crtTexture) return;
+    const ctx = this.crtCanvasCtx;
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, 512, 384);
+    this.crtTexture.needsUpdate = true;
+  }
+
+  /**
+   * Render a brief CRT static / snow burst (simulates tube warming up).
+   */
+  _renderCRTStatic() {
+    if (!this.crtCanvasCtx || !this.crtTexture) return;
+    const ctx = this.crtCanvasCtx;
+    const imageData = ctx.createImageData(512, 384);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const v = Math.random() * 100;
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v + Math.random() * 60;
+      data[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    this.crtTexture.needsUpdate = true;
+  }
+
+  /**
+   * Render the C64 BASIC boot text on the CRT, progressively revealing
+   * characters based on progress (0.0 → 1.0).
+   */
+  _renderCRTBootText(bootLines, progress) {
+    if (!this.crtCanvasCtx || !this.crtTexture) return;
+    const ctx = this.crtCanvasCtx;
+
+    // C64 classic blue screen
+    ctx.fillStyle = '#3730a3';
+    ctx.fillRect(0, 0, 512, 384);
+
+    ctx.fillStyle = '#a5b4fc';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'left';
+
+    // Count total characters across all lines
+    let totalChars = 0;
+    for (let i = 0; i < bootLines.length; i++) {
+      totalChars += bootLines[i].length + 1; // +1 for newline
+    }
+
+    const charsToShow = Math.floor(progress * totalChars);
+    let charCount = 0;
+
+    for (let i = 0; i < bootLines.length; i++) {
+      const line = bootLines[i];
+      const lineStart = charCount;
+      const lineEnd = charCount + line.length;
+
+      if (lineStart >= charsToShow) break;
+
+      const visibleChars = Math.min(line.length, charsToShow - lineStart);
+      const visibleText = line.substring(0, visibleChars);
+
+      // Use green color for the LOAD/RUN command lines
+      if (line.startsWith('LOAD') || line.startsWith('RUN')) {
+        ctx.fillStyle = '#4ade80';
+      } else if (line.startsWith('SEARCHING') || line.startsWith('LOADING')) {
+        ctx.fillStyle = '#fbbf24';
+      } else {
+        ctx.fillStyle = '#a5b4fc';
+      }
+
+      ctx.fillText(visibleText, 16, 32 + i * 24);
+
+      // Draw blinking cursor at end of current typing line
+      if (charsToShow > lineStart && charsToShow <= lineEnd + 1) {
+        const cursorX = 16 + ctx.measureText(visibleText).width;
+        const cursorY = 32 + i * 24;
+        // Blink at ~3Hz
+        if (Math.floor(performance.now() / 333) % 2 === 0) {
+          ctx.fillStyle = '#a5b4fc';
+          ctx.fillRect(cursorX, cursorY - 14, 10, 18);
+        }
+      }
+
+      charCount = lineEnd + 1;
+    }
+
+    this.crtTexture.needsUpdate = true;
   }
 
   skipCinematic() {
     this.isFlashPaperActive = false;
+    this.cinematicPhase = 'COMPLETE';
+    this.roomGroup.visible = false;
     if (this.introVoidGroup) this.introVoidGroup.visible = false;
     if (this.screenOverlay) this.screenOverlay.material.opacity = 1.0;
     if (this.onCinematicComplete) {
@@ -1349,10 +1426,13 @@ export class RetroRoom {
       if (onComplete) onComplete();
       return;
     }
+    // Cancel any in-flight fade loop (fade-in or fade-out) before starting a new one.
+    const myGeneration = ++this._fadeGeneration;
     this.isFadingIn = true;
     this.screenOverlay.material.opacity = 1.0;
     const startTime = performance.now();
     const animateFade = (now) => {
+      if (this._fadeGeneration !== myGeneration) return; // superseded — exit silently
       const elapsed = now - startTime;
       const progress = Math.min(1.0, elapsed / duration);
       this.screenOverlay.material.opacity = Math.max(0.0, 1.0 - progress);
@@ -1372,9 +1452,12 @@ export class RetroRoom {
       if (onComplete) onComplete();
       return;
     }
+    // Cancel any in-flight fade loop (fade-in or fade-out) before starting a new one.
+    const myGeneration = ++this._fadeGeneration;
     this.screenOverlay.material.opacity = 0.0;
     const startTime = performance.now();
     const animateFade = (now) => {
+      if (this._fadeGeneration !== myGeneration) return; // superseded — exit silently
       const elapsed = now - startTime;
       const progress = Math.min(1.0, elapsed / duration);
       this.screenOverlay.material.opacity = Math.min(1.0, progress);
@@ -1449,6 +1532,9 @@ export class RetroRoom {
     this.roomGroup.visible = visible;
     if (!visible && this.introVoidGroup) {
       this.introVoidGroup.visible = false;
+    }
+    if (!visible && this.screenOverlay) {
+      this.screenOverlay.material.opacity = 0.0;
     }
   }
 

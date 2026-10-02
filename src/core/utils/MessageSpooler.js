@@ -30,6 +30,13 @@ export class MessageSpooler {
     this.isProcessing = false;
     this._cancelled = false;
     this._listeners = new Map();
+
+    // Sequence counter: each enqueued item gets a monotonically increasing number.
+    // _completedSeq tracks the sequence number of the last item that finished processing.
+    // enqueueAndWait captures the target sequence at submission time so it only
+    // resolves once *its* specific batch has fully drained — not any earlier drain.
+    this._enqueueSeq = 0;
+    this._completedSeq = 0;
   }
 
   /**
@@ -43,9 +50,11 @@ export class MessageSpooler {
 
     for (const msg of items) {
       if (typeof msg === 'string') {
-        this.queue.push(msg);
+        this._enqueueSeq++;
+        this.queue.push({ text: msg, seq: this._enqueueSeq });
       } else if (msg != null) {
-        this.queue.push(String(msg));
+        this._enqueueSeq++;
+        this.queue.push({ text: String(msg), seq: this._enqueueSeq });
       }
     }
 
@@ -56,7 +65,13 @@ export class MessageSpooler {
 
   /**
    * Enqueues one or more messages and returns a Promise that resolves when
-   * all queued messages have completely finished typing and completed the end-of-string pause.
+   * *this specific batch* has completely finished typing and its end-of-string
+   * pauses have elapsed.
+   *
+   * Uses a per-call sequence number so concurrent callers each wait only for
+   * their own items — earlier batches completing early will not prematurely
+   * resolve a later caller's promise.
+   *
    * @param {string[]|string} messages
    * @returns {Promise<void>}
    */
@@ -66,14 +81,24 @@ export class MessageSpooler {
         resolve();
         return;
       }
-      const onDone = () => {
-        if (this.queue.length === 0 && !this.isProcessing) {
-          this.off('complete', onDone);
+      // Stamp the target sequence *after* enqueue so we know the highest seq
+      // number belonging to this batch.
+      this.enqueue(messages);
+      const targetSeq = this._enqueueSeq;
+
+      // If the queue already finished (e.g. charDelay=0 in tests), resolve now.
+      if (this._completedSeq >= targetSeq && !this.isProcessing) {
+        resolve();
+        return;
+      }
+
+      const onItemComplete = (completedSeq) => {
+        if (completedSeq >= targetSeq) {
+          this.off('itemComplete', onItemComplete);
           resolve();
         }
       };
-      this.on('complete', onDone);
-      this.enqueue(messages);
+      this.on('itemComplete', onItemComplete);
     });
   }
 
@@ -87,7 +112,10 @@ export class MessageSpooler {
     this._emitStateChange();
 
     while (this.queue.length > 0 && !this._cancelled) {
-      const currentString = this.queue.shift();
+      const entry = this.queue.shift();
+      // Support both the new { text, seq } format and bare strings (legacy callers).
+      const currentString = typeof entry === 'string' ? entry : entry.text;
+      const itemSeq       = typeof entry === 'string' ? null  : entry.seq;
       if (typeof currentString !== 'string') continue;
 
       this.emit('lineStart', currentString);
@@ -132,6 +160,12 @@ export class MessageSpooler {
       if (this.lineDelay > 0 && !this._cancelled) {
         await this._delay(this.lineDelay);
       }
+
+      // Advance completed sequence and notify per-item waiters.
+      if (itemSeq !== null) {
+        this._completedSeq = Math.max(this._completedSeq, itemSeq);
+        this.emit('itemComplete', this._completedSeq);
+      }
     }
 
     this.isProcessing = false;
@@ -149,6 +183,9 @@ export class MessageSpooler {
     this._cancelled = true;
     this.queue.length = 0;
     this.isProcessing = false;
+    // Reset sequence counters so a restarted spooler starts clean.
+    this._enqueueSeq = 0;
+    this._completedSeq = 0;
     this._emitStateChange();
   }
 

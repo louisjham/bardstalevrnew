@@ -8,8 +8,9 @@ import { XRManager } from './xr/XRManager.js';
 import { XRRig } from './xr/XRRig.js';
 import { FreeLocomotion } from './xr/FreeLocomotion.js';
 import { GamepadManager, GamepadButtons, GamepadAxes } from './xr/GamepadManager.js';
-import { RetroRoom } from './world/retro-room/RetroRoom.js';
+import { AmigaIntroScene } from './world/intro/AmigaIntroScene.js';
 import { FullVRTavern } from './world/FullVRTavern.js';
+import { GuildMenuPanel } from './ui/spatial-hud/GuildMenuPanel.js';
 import { GarthsShop } from './world/garths-shop/GarthsShop.js';
 import { SkaraBraeGrid } from './world/skara-brae/SkaraBraeGrid.js';
 import { SkaraBraeStreetScene } from './world/skara-brae/SkaraBraeStreetScene.js';
@@ -197,18 +198,35 @@ class BardsTaleApp {
       this.gamepad.vibrate(0.5, 90);
     };
 
-    // 1. Location 1: 1980s Retro Room (C64 & Floppy Load)
-    this.retroRoom = new RetroRoom(this.scene, this.camera, () => {
-      this.gameLoop.setState(GameState.TAVERN_INTRO);
-    }, this.xrRig);
+    // 1. Location 1: Amiga-Style VR Intro Screen
+    this.amigaIntro = new AmigaIntroScene(
+      this.scene,
+      (choice) => {
+        // 'new_game' → initialize game and go to Adventurers Guild
+        if (choice === 'new_game') {
+          this.gameLoop.setState(GameState.ADVENTURERS_GUILD);
+        }
+      },
+      this.synth,
+      this.xrRig
+    );
 
-    // 2. Location 2: Skara Brae Tavern (Title Screen)
+    // 2. Location 2: Adventurers Guild (Tavern environment, repurposed)
     this.tavern = new FullVRTavern(
       this.scene,
       () => this.partyUI.show(),
       () => this.gameLoop.setState(GameState.GARTHS_SHOP)
     );
     this.tavern.setVisible(false);
+
+    // ── Guild Menu Panel (Bard-triggered, movable 2D spatial menu) ──────────────
+    this.guildMenu = new GuildMenuPanel(
+      this.scene,
+      this.camera,
+      this.gameLoop.party,
+      (actionId, data) => this.handleGuildMenuAction(actionId, data),
+      (msg) => this.showToast(msg)
+    );
 
     // 3. Location 3: Garth's Weapons & Wonders (Shop & Party Gear)
     this.garthsShop = new GarthsShop(
@@ -225,6 +243,9 @@ class BardsTaleApp {
       this.scene,
       this.camera,
       (victory) => {
+        // Clear the saved street position on combat end — the next direct HUD-button
+        // combat entry should start at origin, not the stale street coordinates.
+        this._lastStreetPosition = null;
         this.gameLoop.setState(GameState.TAVERN_INTRO);
         this.showToast(victory ? "🏆 Returned to Tavern!" : "💀 Escaped Combat!");
       },
@@ -258,6 +279,26 @@ class BardsTaleApp {
     this.focusedTarget = null;
     this.gridInspector = null;
 
+    // Cached HUD DOM references — queried once here, never inside the render loop.
+    this._hudClockIcon     = document.getElementById('day-night-icon');
+    this._hudClockText     = document.getElementById('day-night-text');
+    this._hudClockServices = document.getElementById('day-night-services');
+    // Track last-rendered clock values to skip redundant DOM writes.
+    this._hudLastPhase     = null;
+    this._hudLastSecs      = -1;
+
+    // Last XR rig position recorded while on Skara Brae Streets.
+    // Saved on every step so combat return (or HUD-triggered combat) doesn't discard it.
+    this._lastStreetPosition = null;
+
+    // Teleporter: remember which source tile last fired so we only re-trigger
+    // after the player has physically left that tile first.
+    this._lastTpTile = null;
+
+    // Pooled FLAME spell particle system — created once, reused on every cast.
+    this._flameParticleSystem = null;
+    this._flamePosAttribute   = null;
+
     this.bindEvents();
     this.handleStateTransition(GameState.RETRO_ROOM);
     this.startLoop();
@@ -284,22 +325,28 @@ class BardsTaleApp {
     this.gamepad.vibrate(0.5, 180);
 
     if (spellType === 'FLAME') {
-      // Mage Flame: Ignite both hands in real-time flames & particle embers
+      // Mage Flame: pooled particle system — geometry/material created once, positions
+      // randomized in-place on each cast to avoid repeated allocations.
       const count = 40;
-      const geo = new THREE.BufferGeometry();
-      const pos = new Float32Array(count * 3);
-
+      if (!this._flameParticleSystem) {
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        this._flamePosAttribute = geo.getAttribute('position');
+        this._flameParticleSystem = new THREE.Points(
+          geo,
+          new THREE.PointsMaterial({ color: 0xf97316, size: 0.05, transparent: true, blending: THREE.AdditiveBlending })
+        );
+      }
+      // Re-randomize particle positions in-place (no new Float32Array or BufferAttribute).
+      const pos = this._flamePosAttribute.array;
       for (let i = 0; i < count; i++) {
-        pos[i * 3] = (Math.random() - 0.5) * 0.4;
+        pos[i * 3]     = (Math.random() - 0.5) * 0.4;
         pos[i * 3 + 1] = (Math.random() - 0.5) * 0.4;
         pos[i * 3 + 2] = -0.5 + (Math.random() - 0.5) * 0.4;
       }
-
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      const pSystem = new THREE.Points(
-        geo,
-        new THREE.PointsMaterial({ color: 0xf97316, size: 0.05, transparent: true, blending: THREE.AdditiveBlending })
-      );
+      this._flamePosAttribute.needsUpdate = true;
+      const pSystem = this._flameParticleSystem;
       this.camera.add(pSystem);
       this.activeSpellEffects.push({ pSystem, life: 2.0 });
     } else if (spellType === 'ARMOR') {
@@ -375,9 +422,8 @@ class BardsTaleApp {
   }
 
   handleStateTransition(newState) {
-    this.showToast(`🌌 Transitioning Location: ${newState}`);
-
-    this.retroRoom.setVisible(false);
+    // Hide all scene environments
+    if (this.amigaIntro) { this.amigaIntro.setVisible(false); this.amigaIntro.stop(); }
     this.tavern.setVisible(false);
     this.garthsShop.setVisible(false);
     this.streetScene.setVisible(false);
@@ -387,7 +433,7 @@ class BardsTaleApp {
 
     const songbookPanel = document.querySelector('.songbook-panel');
     if (songbookPanel) {
-      if (newState === GameState.RETRO_ROOM || newState === GameState.COMBAT_ZONE) {
+      if (newState === GameState.INTRO_SCENE || newState === GameState.COMBAT_ZONE) {
         songbookPanel.style.display = 'none';
       } else {
         songbookPanel.style.display = 'block';
@@ -396,19 +442,34 @@ class BardsTaleApp {
 
     // Position the XRRig (floor-level). In desktop mode, camera local Y provides
     // eye height (1.18m). In VR, physical head tracking provides the offset.
-    if (newState === GameState.RETRO_ROOM) {
-      this.retroRoom.setVisible(true);
+    if (newState === GameState.INTRO_SCENE) {
+      if (this.xr) {
+        this.xr.setControllersVisible(false);
+        if (this.xr.orbitControls) this.xr.orbitControls.enabled = false;
+      }
+      this.amigaIntro.setVisible(true);
       this.grimoire.setEnabled(false);
       this.instructionWindow.hide();
-      this.retroRoom.triggerFlashPaperIntro(() => {
-        this.gameLoop.setState(GameState.TAVERN_INTRO);
-      });
-    } else if (newState === GameState.TAVERN_INTRO) {
+      // Position player centered facing the screen
+      this.xrRig.setPosition(0, 0, 0);
+      this.camera.position.set(0, 1.18, 0);
+      this.camera.rotation.set(0, 0, 0);
+      // Start the Amiga intro animation
+      this.amigaIntro.start();
+    } else if (newState === GameState.ADVENTURERS_GUILD) {
+      if (this.xr) {
+        this.xr.setControllersVisible(true);
+        if (this.xr.orbitControls) {
+          this.xr.orbitControls.enabled = true;
+          this.xr.orbitControls.target.set(0, 1.18, -1.0);
+        }
+      }
       this.pendingRecruits = [];
       this.gameLoop.setParty([]);
       this.tavern.setVisible(true);
       this.grimoire.setEnabled(false);
       this.instructionWindow.hide();
+      if (this.guildMenu && this.guildMenu.isOpen) this.guildMenu.close();
       this.xrRig.setPosition(0, 0, 1.2);
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level with Bard/patrons (1.18m)
       this.camera.rotation.set(0, 0, 0); // Ensure roll and rotation are cleared
@@ -416,8 +477,14 @@ class BardsTaleApp {
       this.singer.startSong();
       this.fadeInFromBlack(500);
       this.tavern.playEntranceTransition();
-      this.showToast("🍺 Welcome to Skara Brae Tavern! Click Patrons to recruit your company (up to 6).");
+      this.showToast("🛡️ Welcome to the Adventurers Guild! Point at the Bard and press trigger to open the Guild Menu.");
     } else if (newState === GameState.GARTHS_SHOP) {
+      if (this.xr) {
+        this.xr.setControllersVisible(true);
+        if (this.xr.orbitControls) {
+          this.xr.orbitControls.enabled = true;
+        }
+      }
       if ((!this.pendingRecruits || this.pendingRecruits.length === 0) && (!this.gameLoop.party || this.gameLoop.party.length === 0)) {
         this.ensureStarterParty();
       }
@@ -479,7 +546,11 @@ class BardsTaleApp {
     } else if (newState === GameState.COMBAT_ZONE) {
       this.ensureStarterParty();
       this.grimoire.setEnabled(true);
-      this.xrRig.setPosition(0, 0, 0);
+      // Only zero the rig when there is no saved street position (e.g. HUD button combat).
+      // Street-triggered combat preserves the position for a correct Grimoire automap origin.
+      if (!this._lastStreetPosition) {
+        this.xrRig.setPosition(0, 0, 0);
+      }
       this.camera.position.set(0, 1.18, 0); // Desktop eye height locked at eye-level (1.18m)
       this.camera.rotation.z = 0;
       const isNight = this.timeEngine ? this.timeEngine.isNight : false;
@@ -490,8 +561,8 @@ class BardsTaleApp {
   }
 
   fadeInFromBlack(duration = 500, onComplete = null) {
-    if (this.retroRoom) {
-      this.retroRoom.fadeInFromBlack(duration, onComplete);
+    if (this.amigaIntro && this.amigaIntro.group.visible) {
+      this.amigaIntro.fadeInFromBlack(duration, onComplete);
     } else if (onComplete) {
       onComplete();
     }
@@ -510,6 +581,15 @@ class BardsTaleApp {
     }
     const animTarget = (mesh.parent && (mesh.parent.userData?.isPatron || mesh.parent.userData?.isBard)) ? mesh.parent : mesh;
     if (!animTarget.position) return;
+
+    // Cancel any in-progress hop on this exact mesh before starting a new one.
+    // Prevents stacking intervals from rapid clicks and stops the interval from
+    // running after the mesh has been removed from the scene.
+    if (animTarget.userData._hopInterval != null) {
+      clearInterval(animTarget.userData._hopInterval);
+      animTarget.userData._hopInterval = null;
+    }
+
     const startY = animTarget.position.y;
     let t = 0;
     const hop = setInterval(() => {
@@ -518,9 +598,22 @@ class BardsTaleApp {
       if (t >= 1) {
         animTarget.position.y = startY;
         clearInterval(hop);
+        animTarget.userData._hopInterval = null;
       }
     }, 16);
+    animTarget.userData._hopInterval = hop;
   }
+
+  // Canonical race for each tavern patron, keyed by patronKey.
+  // Used when bestowing a weapon class so the created character retains
+  // the racial identity of the patron they were recruited from.
+  static _PATRON_RACE = {
+    paladin: 'Human',
+    wizard:  'Elf',
+    dwarf:   'Dwarf',
+    hobbit:  'Hobbit',
+    bard:    'Human'
+  };
 
   recruitPatron(targetObj) {
     if (!targetObj) return;
@@ -530,7 +623,9 @@ class BardsTaleApp {
       return;
     }
     const recruitName = targetObj.userData?.name || 'Stranger';
-    this.pendingRecruits.push(recruitName);
+    const recruitRace = BardsTaleApp._PATRON_RACE[targetObj.userData?.patronKey] || 'Human';
+    // Store both name and race so bestowWeaponClass can create the character correctly.
+    this.pendingRecruits.push({ name: recruitName, race: recruitRace });
     this.animateRecruitment(targetObj);
 
     // Remove interaction box from raycaster so they cannot be clicked twice
@@ -556,7 +651,10 @@ class BardsTaleApp {
     if (!weaponObj) return false;
     if (!this.pendingRecruits || this.pendingRecruits.length === 0) return false;
     const wpn = (weaponObj.userData?.name || '').toLowerCase();
-    const recruit = this.pendingRecruits.shift();
+    // pendingRecruits entries are { name, race } objects (set in recruitPatron).
+    const recruitEntry = this.pendingRecruits.shift();
+    const recruitName = recruitEntry?.name ?? recruitEntry ?? 'Adventurer';
+    const recruitRace = recruitEntry?.race ?? 'Human';
     let assignedClass = 'Warrior';
     if (wpn.includes('lute')) {
       assignedClass = 'Bard';
@@ -567,7 +665,7 @@ class BardsTaleApp {
     } else {
       assignedClass = 'Warrior';
     }
-    const hero = createCharacter(recruit, 'Human', assignedClass);
+    const hero = createCharacter(recruitName, recruitRace, assignedClass);
     autoEquipCharacter(hero);
     this.gameLoop.party.push(hero);
     this.characterCardUI.setParty(this.gameLoop.party);
@@ -579,7 +677,7 @@ class BardsTaleApp {
     this.synth.init();
     this.synth.playSequence(['D4', 'F#4', 'A4', 'D5'], 120);
     const weaponName = weaponObj.userData?.name || 'weapon';
-    this.showToast(`⚔️ ${recruit} takes the ${weaponName} and becomes a ${assignedClass}!`);
+    this.showToast(`⚔️ ${recruitName} takes the ${weaponName} and becomes a ${recruitRace} ${assignedClass}!`);
     return true;
   }
 
@@ -649,32 +747,21 @@ class BardsTaleApp {
 
       const state = this.gameLoop.currentState;
 
-      if (state === GameState.RETRO_ROOM) {
-        const intersects = raycaster.intersectObjects(this.retroRoom.interactableObjects, true);
-
-        // Generous Proximity Grab Fallback for VR controllers near the floppy disk on desk (0.14, 0.77, -0.38)
-        let proximityGrab = false;
-        if (controllerIndex !== null && this.xr.controllers[controllerIndex]) {
-          const controller = this.xr.controllers[controllerIndex];
-          const ctrlWorldPos = new THREE.Vector3();
-          controller.getWorldPosition(ctrlWorldPos);
-          const diskWorldPos = new THREE.Vector3(0.14, 0.77, -0.38);
-          if (ctrlWorldPos.distanceTo(diskWorldPos) < 0.45) {
-            proximityGrab = true;
-          }
-        }
-
-        if (intersects.length > 0 || proximityGrab) {
-          if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.95, 140);
-          if (this.retroRoom.isBootComplete) {
-            this.gameLoop.setState(GameState.TAVERN_INTRO);
-            this.showToast("🍺 Entering Skara Brae Tavern...");
+      if (state === GameState.INTRO_SCENE) {
+        // Any click/trigger on the intro screen or menu interrupts to show menu / select item
+        const introObjs = this.amigaIntro.interactableObjects;
+        const intersects = raycaster.intersectObjects(introObjs, false);
+        if (intersects.length > 0) {
+          const hit = intersects[0];
+          if (hit.uv) {
+            if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.5, 60);
+            this.amigaIntro.handleClick(hit.uv, (msg) => this.showToast(msg));
           } else {
-            this.synth.init();
-            this.synth.playSequence(['E5', 'B4', 'G5'], 90);
-            this.retroRoom.insertFloppyDisk();
-            this.showToast("💾 Inserting Floppy Disk into 1541 Drive...");
+            this.amigaIntro.onControllerButton();
           }
+        } else {
+          // Click anywhere = interrupt intro
+          this.amigaIntro.onControllerButton();
         }
       } else if (state === GameState.GARTHS_SHOP) {
         const intersects = raycaster.intersectObjects(this.garthsShop.interactableObjects, true);
@@ -828,7 +915,36 @@ class BardsTaleApp {
           const action = btnIntersects[0].object.userData.action;
           this.combatArena.handleButtonClick(action, this.synth, (i, int, d) => this.xr.triggerHaptics(i, int, d));
         }
-      } else if (state === GameState.TAVERN_INTRO) {
+      } else if (state === GameState.ADVENTURERS_GUILD) {
+        // ── Check Guild Menu panel interaction first ───────────────────────────
+        if (this.guildMenu && this.guildMenu.isOpen) {
+          const guildObjs = this.guildMenu.interactableObjects;
+          const guildIntersects = raycaster.intersectObjects(guildObjs, false);
+          if (guildIntersects.length > 0) {
+            const hit = guildIntersects[0];
+            const mesh = hit.object;
+            if (mesh.userData.isGuildMenuHandle) {
+              // Start drag
+              const ctrlPos = new THREE.Vector3();
+              if (controllerIndex !== null && this.xr.controllers[controllerIndex]) {
+                this.xr.controllers[controllerIndex].getWorldPosition(ctrlPos);
+              } else {
+                this.camera.getWorldPosition(ctrlPos);
+                ctrlPos.add(new THREE.Vector3(0, 0, -1));
+              }
+              this.guildMenu.startDrag(ctrlPos);
+              if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.4, 60);
+              return;
+            } else if (mesh.userData.isGuildMenuFace && hit.uv) {
+              if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.5, 80);
+              this.synth.init();
+              this.synth.playSequence(['E4', 'G4'], 80);
+              this.guildMenu.handleClick(hit.uv);
+              return;
+            }
+          }
+        }
+
         // First check if clicking inside 3D dialogue window
         if (this.tavern.dialogueMesh && this.tavern.dialogueGroup && this.tavern.dialogueGroup.visible) {
           const dialogueIntersects = raycaster.intersectObjects([this.tavern.dialogueMesh], true);
@@ -859,7 +975,14 @@ class BardsTaleApp {
               this.synth.playSequence(['E4', 'A4'], 80);
               this.tavern.handleDialogueClick(hit.uv);
             }
-          } else if (obj && (obj.userData.isPatron || obj.userData.isBard)) {
+          } else if (obj && obj.userData.isBard) {
+            // ── Bard click → Open Guild Menu ────────────────────────────────
+            this.synth.init();
+            this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 100);
+            this.guildMenu.setParty(this.gameLoop.party);
+            this.guildMenu.open(this.gameLoop.party);
+            this.showToast("🛡️ Adventurers Guild Menu opened!");
+          } else if (obj && obj.userData.isPatron) {
             this.recruitPatron(obj);
           } else if (obj && obj.userData.isDoor) {
             this.gameLoop.setState(GameState.GARTHS_SHOP);
@@ -896,6 +1019,11 @@ class BardsTaleApp {
       handleInteraction(raycaster, controllerIndex, true);
     };
     this.xr.onSqueezeEnd = (controllerIndex, controller, raycaster) => {
+      // Stop Guild Menu drag
+      if (this.guildMenu && this.guildMenu.isDragging) {
+        this.guildMenu.endDrag();
+        return;
+      }
       if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
         const held = this.garthsShop.getHeldWeapon(controllerIndex);
         if (held) {
@@ -1024,17 +1152,9 @@ class BardsTaleApp {
 
     if (!this.focusedTarget) {
       const state = this.gameLoop.currentState;
-      if (state === GameState.RETRO_ROOM) {
-        const intersects = this.centerRaycaster.intersectObjects(this.retroRoom.interactableObjects, true);
-        if (intersects.length > 0) {
-          if (this.retroRoom.isBootComplete) {
-            this.focusedTarget = { type: 'RETRO_ENTER', object: intersects[0].object };
-            promptText = '🎮 [A] Enter Skara Brae Tavern';
-          } else {
-            this.focusedTarget = { type: 'RETRO_FLOPPY', object: intersects[0].object };
-            promptText = '💾 [A] Insert Floppy Disk';
-          }
-        }
+      if (state === GameState.INTRO_SCENE) {
+        this.focusedTarget = { type: 'INTRO_SCREEN' };
+        promptText = this.amigaIntro && this.amigaIntro.isMenuVisible ? '▶ [A] Select Option' : '▶ [A] Skip / Show Menu';
       } else if (state === GameState.GARTHS_SHOP) {
         const intersects = this.centerRaycaster.intersectObjects(this.garthsShop.interactableObjects, true);
         if (intersects.length > 0) {
@@ -1049,7 +1169,9 @@ class BardsTaleApp {
             const name = obj.userData.name || 'Weapon';
             this.focusedTarget = { type: 'GARTH_WEAPON', object: obj };
             if (this.pendingRecruits && this.pendingRecruits.length > 0) {
-              promptText = `⚔️ [A] Bestow ${name} on ${this.pendingRecruits[0]}`;
+              const nextRecruit = this.pendingRecruits[0];
+              const nextName = nextRecruit?.name ?? nextRecruit;
+              promptText = `⚔️ [A] Bestow ${name} on ${nextName}`;
             } else {
               promptText = `⚔️ [A] Equip ${name}`;
             }
@@ -1129,7 +1251,7 @@ class BardsTaleApp {
             }
           }
         }
-      } else if (state === GameState.TAVERN_INTRO) {
+      } else if (state === GameState.ADVENTURERS_GUILD) {
         const intersects = this.centerRaycaster.intersectObjects(this.tavern.interactableObjects, true);
         let doorHit = false;
         if (intersects.length > 0) {
@@ -1145,9 +1267,8 @@ class BardsTaleApp {
             const count = this.pendingRecruits ? this.pendingRecruits.length : 0;
             promptText = `🍻 [A] Recruit ${obj.userData.name || 'Patron'} (${count}/6)`;
           } else if (obj && obj.userData.isBard) {
-            this.focusedTarget = { type: 'TAVERN_BARD', object: obj };
-            const count = this.pendingRecruits ? this.pendingRecruits.length : 0;
-            promptText = `🍻 [A] Recruit The Scarlet Bard (${count}/6)`;
+            this.focusedTarget = { type: 'GUILD_BARD', object: obj };
+            promptText = '🛡️ [A] Open Adventurers Guild Menu';
           } else if (obj && obj.userData.isDoor) {
             this.focusedTarget = { type: 'TAVERN_DOOR', object: obj };
             promptText = "🚪 [A] Enter Garth's Shop";
@@ -1180,19 +1301,20 @@ class BardsTaleApp {
     if (target.type === 'GRIMOIRE') {
       this.grimoire.handleCanvasClick(target.uv, (msg) => this.showToast(msg));
       this.gamepad.vibrate(0.3, 80);
-    } else if (target.type === 'RETRO_ENTER') {
-      this.gameLoop.setState(GameState.TAVERN_INTRO);
-      this.gamepad.vibrate(0.4, 120);
-    } else if (target.type === 'RETRO_FLOPPY') {
-      if (this.retroRoom.isBootComplete) {
-        this.gameLoop.setState(GameState.TAVERN_INTRO);
-        this.gamepad.vibrate(0.4, 120);
-      } else {
-        this.retroRoom.insertFloppyDisk();
-        this.showToast("💾 Sliding Floppy Disk into 1541 Drive...");
-        this.gamepad.vibrate(0.4, 150);
+    } else if (target.type === 'INTRO_SCREEN') {
+      // Any A-button press on intro screen = interrupt / select menu item
+      if (this.amigaIntro) {
+        this.amigaIntro.onControllerButton();
       }
-    } else if (target.type === 'TAVERN_PATRON' || target.type === 'TAVERN_BARD') {
+      this.gamepad.vibrate(0.4, 80);
+    } else if (target.type === 'GUILD_BARD') {
+      // Bard in the Adventurers Guild → open Guild Menu
+      this.guildMenu.setParty(this.gameLoop.party);
+      this.guildMenu.open(this.gameLoop.party);
+      this.synth.playSequence(['C4', 'E4', 'G4', 'C5'], 100);
+      this.showToast('🛡️ Adventurers Guild Menu opened!');
+      this.gamepad.vibrate(0.4, 100);
+    } else if (target.type === 'TAVERN_PATRON') {
       this.recruitPatron(target.object);
       this.gamepad.vibrate(0.4, 100);
     } else if (target.type === 'TAVERN_DIALOGUE') {
@@ -1260,8 +1382,8 @@ class BardsTaleApp {
         this.gamepad.vibrate(0.3, 100);
       }
     } else if (target.type === 'STREET_TAVERN_DOOR') {
-      this.gameLoop.setState(GameState.TAVERN_INTRO);
-      this.showToast("🍺 Entering The Scarlet Bard Tavern...");
+      this.gameLoop.setState(GameState.ADVENTURERS_GUILD);
+      this.showToast("🛡️ Entering the Adventurers Guild...");
       this.gamepad.vibrate(0.4, 120);
     } else if (target.type === 'STREET_GUILD_DOOR') {
       this.timeEngine.restUntilMorning();
@@ -1306,6 +1428,38 @@ class BardsTaleApp {
     }
   }
 
+  handleGuildMenuAction(actionId, data) {
+    switch (actionId) {
+      case 'create_char':
+        // Open party creation UI for a single character
+        this.partyUI.show();
+        break;
+      case 'add_to_party':
+      case 'remove_from_party':
+        // These are handled internally in GuildMenuPanel via prompts
+        break;
+      case 'name_party':
+        // Already handled in GuildMenuPanel
+        break;
+      case 'save_party':
+        this.synth.init();
+        this.synth.playSequence(['C5', 'G4', 'E5', 'C6'], 100);
+        this.gamepad.vibrate(0.5, 200);
+        break;
+      case 'delete_char':
+      case 'delete_party':
+        // Sync party changes to all systems
+        this.syncParty(this.gameLoop.party);
+        this.grimoire.updatePartyData(this.gameLoop.party);
+        this.synth.init();
+        this.synth.playSequence(['D3', 'B2', 'G2'], 200);
+        this.gamepad.vibrate(0.6, 250);
+        break;
+      default:
+        console.log('[GuildMenu] Unhandled action:', actionId, data);
+    }
+  }
+
   // Handle Gamepad Controller Button Events
   handleGamepadInput() {
     if (!this.gamepad.connected) return;
@@ -1320,13 +1474,13 @@ class BardsTaleApp {
 
       if (this.focusedTarget) {
         this.executeTargetInteraction(this.focusedTarget);
+      } else if (this.gameLoop.currentState === GameState.INTRO_SCENE) {
+        // Any A-press on the intro scene interrupts to show menu
+        if (this.amigaIntro) this.amigaIntro.onControllerButton();
+        this.gamepad.vibrate(0.4, 80);
       } else if (this.gameLoop.currentState === GameState.COMBAT_ZONE) {
         const action = this.combatArena.getSelectedAction();
         this.combatArena.handleButtonClick(action, this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
-      } else if (this.gameLoop.currentState === GameState.RETRO_ROOM && !this.retroRoom.isDiskInserted) {
-        this.retroRoom.insertFloppyDisk();
-        this.showToast("💾 Sliding Floppy Disk into 1541 Drive...");
-        this.gamepad.vibrate(0.4, 150);
       }
     }
 
@@ -1342,8 +1496,13 @@ class BardsTaleApp {
       this.showToast(this.grimoire.isOpen ? "📖 Grimoire & Automap Opened" : "📖 Grimoire Closed");
     }
 
-    // Button B (1): Cancel / Back / Defend
+    // Button B (1): Cancel / Back / Defend / Close Guild Menu
     if (this.gamepad.justPressed(GamepadButtons.B)) {
+      if (this.guildMenu && this.guildMenu.isOpen) {
+        this.guildMenu.close();
+        this.gamepad.vibrate(0.2, 60);
+        return;
+      }
       if (this.partyUI && this.partyUI.overlay && !this.partyUI.overlay.classList.contains('hidden')) {
         this.partyUI.hide();
         this.gamepad.vibrate(0.2, 50);
@@ -1360,10 +1519,14 @@ class BardsTaleApp {
       }
     }
 
-    // Button X (2): Quick Party UI / Song
+    // Button X (2): Quick Party UI / Song / Guild Menu
     if (this.gamepad.justPressed(GamepadButtons.X)) {
-      if (this.gameLoop.currentState === GameState.TAVERN_INTRO) {
-        this.partyUI.show();
+      if (this.gameLoop.currentState === GameState.ADVENTURERS_GUILD) {
+        // X in the guild opens the Guild Menu pointing at bard position
+        if (this.guildMenu && !this.guildMenu.isOpen) {
+          this.guildMenu.open(this.gameLoop.party);
+          this.showToast("🛡️ Guild Menu opened via X button.");
+        }
         this.gamepad.vibrate(0.3, 80);
       } else if (this.gameLoop.currentState === GameState.COMBAT_ZONE) {
         this.combatArena.executeCommand('SONG', this.synth, (i, int, d) => this.gamepad.vibrate(int, d));
@@ -1414,8 +1577,8 @@ class BardsTaleApp {
     this.synth.init();
     this.synth.playSequence(['G4', 'E4', 'C4'], 120);
 
-    // Reset Retro Room 1541 disk & CRT monitor
-    this.retroRoom.reset();
+    // Close the Guild Menu if open
+    if (this.guildMenu && this.guildMenu.isOpen) this.guildMenu.close();
 
     // Reset Grimoire availability and tutorial window
     this.grimoire.setEnabled(false);
@@ -1424,9 +1587,9 @@ class BardsTaleApp {
       this.grimoireTutorial.hasBeenShown = false;
     }
 
-    // Reset game state back to 1980s retro room
-    this.gameLoop.setState(GameState.RETRO_ROOM);
-    this.showToast("🔄 Game Restarted: Back at the 1985 C64 Desk!");
+    // Reset game state back to intro screen
+    this.gameLoop.setState(GameState.INTRO_SCENE);
+    this.showToast("🔄 Game Restarted: Back to the Introduction!");
 
     if (this.grimoire.isOpen) {
       this.grimoire.toggleBookDesktop(false);
@@ -1457,16 +1620,17 @@ class BardsTaleApp {
       const xrSession = this.renderer.xr.getSession();
       const refSpace = this.renderer.xr.getReferenceSpace();
 
-      // Poll Gamepad Controller state
+      // Poll Gamepad Controller & XR Manager state
       this.gamepad.update();
       this.handleGamepadInput();
+      this.xr.update();
 
       // Free Locomotion & Grid Tile Exploration
-      if (this.gameLoop.currentState !== GameState.COMBAT_ZONE) {
+      // revealTile is called once inside locomotion.update() — do NOT call it again here.
+      if (this.gameLoop.currentState !== GameState.COMBAT_ZONE && this.gameLoop.currentState !== GameState.INTRO_SCENE) {
         this.locomotion.update(deltaTime, xrSession, frame, refSpace, this.gameLoop.currentState);
-        const headPos = this.xrRig.getWorldHeadPosition();
-        this.skaraBraeGrid.revealTile(headPos.x, headPos.z);
         if (this.gridInspector) {
+          const headPos = this.xrRig.getWorldHeadPosition();
           this.gridInspector.update(headPos.x, headPos.z, this.xrRig.rig.rotation.y);
         }
       }
@@ -1479,14 +1643,9 @@ class BardsTaleApp {
         this.grimoire.updateDesktop();
       }
 
-      // Update Retro Room C64
-      if (this.gameLoop.currentState === GameState.RETRO_ROOM) {
-        this.retroRoom.update(time, deltaTime);
-      }
-
-      // Smooth fade-from-black transition fallback
-      if (this.retroRoom && this.retroRoom.screenOverlay && !this.retroRoom.isFadingIn && this.retroRoom.screenOverlay.material.opacity > 0) {
-        this.retroRoom.screenOverlay.material.opacity = Math.max(0, this.retroRoom.screenOverlay.material.opacity - deltaTime * 0.9);
+      // Update Amiga Intro Scene animation
+      if (this.gameLoop.currentState === GameState.INTRO_SCENE) {
+        this.amigaIntro.update(deltaTime);
       }
 
       // Update Spatially Locked Grimoire Tutorial Window (5s Auto-Fade)
@@ -1504,10 +1663,10 @@ class BardsTaleApp {
           this.xr.hands
         );
 
-        // Quest 2 Touch Controller Polling (Door Highlight & Grimoire Toggle)
+        // Quest 2 Touch Controller Polling (Door Highlight, Grimoire Toggle, Intro Interrupt)
         if (xrSession && xrSession.inputSources) {
-          // ⚡ Check Tavern Door Hover in VR (Highlight when controller points directly at low-poly door collider)
-          if (this.gameLoop.currentState === GameState.TAVERN_INTRO) {
+          // ⚡ Check Guild Door Hover in VR (Highlight when controller points directly at low-poly door collider)
+          if (this.gameLoop.currentState === GameState.ADVENTURERS_GUILD) {
             let isRayOnDoor = false;
             const doorTarget = this.tavern.doorCollider || this.tavern.exitDoorMesh;
 
@@ -1526,25 +1685,42 @@ class BardsTaleApp {
 
             this.tavern.setDoorHighlighted(isRayOnDoor);
             this.isTavernDoorHighlighted = isRayOnDoor;
+
+            // ── Update Guild Menu drag if dragging ──────────────────────────
+            if (this.guildMenu && this.guildMenu.isDragging) {
+              for (let cIdx = 0; cIdx < 2; cIdx++) {
+                if (this.xr.controllers[cIdx]) {
+                  const ctrlPos = new THREE.Vector3();
+                  this.xr.controllers[cIdx].getWorldPosition(ctrlPos);
+                  this.guildMenu.updateDrag(ctrlPos);
+                  break;
+                }
+              }
+            }
           }
 
-          // Check WebXR Controller Y / X Button Press for Grimoire Toggle
+          // Check WebXR Controller Y / X Button Press for Grimoire Toggle.
+          // Edge-detection: only fire on the frame the button transitions from
+          // not-pressed to pressed. _vrBtnWasPressed tracks the previous state
+          // so we never fire more than once per physical button press.
+          let vrBtnIsPressed = false;
           for (let idx = 0; idx < xrSession.inputSources.length; idx++) {
             const src = xrSession.inputSources[idx];
             if (src && src.gamepad && src.gamepad.buttons) {
               const btnX = src.gamepad.buttons[4]; // X on left touch controller
               const btnY = src.gamepad.buttons[5]; // Y on left touch controller
               if ((btnY && btnY.pressed) || (btnX && btnX.pressed)) {
-                if (this.grimoire.enabled && !this._vrButtonCooldown) {
-                  this._vrButtonCooldown = true;
+                vrBtnIsPressed = true;
+                if (this.grimoire.enabled && !this._vrBtnWasPressed) {
                   this.grimoire.toggleBookDesktop();
                   this.xr.triggerHaptics(idx, 0.5, 100);
                   this.showToast(this.grimoire.isOpen ? "📖 Grimoire & Automap Opened" : "📖 Grimoire Closed");
-                  setTimeout(() => { this._vrButtonCooldown = false; }, 400);
                 }
+                break;
               }
             }
           }
+          this._vrBtnWasPressed = vrBtnIsPressed;
         }
       }
 
@@ -1561,26 +1737,32 @@ class BardsTaleApp {
       // Update Day / Night World Time Engine
       if (this.timeEngine) {
         this.timeEngine.update(deltaTime);
-        const clockIcon = document.getElementById('day-night-icon');
-        const clockText = document.getElementById('day-night-text');
-        const clockServices = document.getElementById('day-night-services');
-        if (clockIcon && clockText && clockServices) {
-          const isNight = this.timeEngine.isNight;
-          const isDusk = this.timeEngine.isDusk;
-          const isDawn = this.timeEngine.currentPhase === TimeOfDay.DAWN;
-          clockIcon.textContent = isNight ? '🌙' : isDusk ? '🌆' : isDawn ? '🌅' : '☀️';
-          const mins = Math.floor(this.timeEngine.phaseRemainingSeconds / 60);
-          const secs = Math.floor(this.timeEngine.phaseRemainingSeconds % 60).toString().padStart(2, '0');
-          clockText.textContent = `${this.timeEngine.rules.name.toUpperCase()} (${mins}:${secs})`;
-          if (isNight) {
-            clockServices.textContent = 'SERVICES CLOSED';
-            clockServices.className = 'services-badge closed';
-          } else if (isDusk) {
-            clockServices.textContent = 'CLOSING SOON';
-            clockServices.className = 'services-badge warning';
-          } else {
-            clockServices.textContent = 'SERVICES OPEN';
-            clockServices.className = 'services-badge open';
+        // Use cached DOM refs (set once in constructor) and only write when the
+        // displayed value actually changes — avoids 3 getElementById calls + DOM
+        // style mutations at 90 Hz.
+        if (this._hudClockIcon && this._hudClockText && this._hudClockServices) {
+          const phase   = this.timeEngine.currentPhase;
+          const secsInt = Math.floor(this.timeEngine.phaseRemainingSeconds);
+          if (phase !== this._hudLastPhase || secsInt !== this._hudLastSecs) {
+            this._hudLastPhase = phase;
+            this._hudLastSecs  = secsInt;
+            const isNight = this.timeEngine.isNight;
+            const isDusk  = this.timeEngine.isDusk;
+            const isDawn  = phase === TimeOfDay.DAWN;
+            this._hudClockIcon.textContent = isNight ? '🌙' : isDusk ? '🌆' : isDawn ? '🌅' : '☀️';
+            const mins = Math.floor(secsInt / 60);
+            const secs = (secsInt % 60).toString().padStart(2, '0');
+            this._hudClockText.textContent = `${this.timeEngine.rules.name.toUpperCase()} (${mins}:${secs})`;
+            if (isNight) {
+              this._hudClockServices.textContent = 'SERVICES CLOSED';
+              this._hudClockServices.className = 'services-badge closed';
+            } else if (isDusk) {
+              this._hudClockServices.textContent = 'CLOSING SOON';
+              this._hudClockServices.className = 'services-badge warning';
+            } else {
+              this._hudClockServices.textContent = 'SERVICES OPEN';
+              this._hudClockServices.className = 'services-badge open';
+            }
           }
         }
       }
@@ -1591,14 +1773,14 @@ class BardsTaleApp {
       }
 
       // Render Frame
-      if (this.gameLoop.currentState === GameState.TAVERN_INTRO) {
+      if (this.gameLoop.currentState === GameState.ADVENTURERS_GUILD) {
         this.tavern.update(time, deltaTime);
       } else if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
         this.garthsShop.update(time);
       } else if (this.gameLoop.currentState === GameState.SKARA_BRAE_STREETS) {
         this.streetScene.update(deltaTime);
         const headPos = this.xrRig.getWorldHeadPosition();
-        this.skaraBraeGrid.revealTile(headPos.x, headPos.z);
+        // revealTile already called by locomotion.update() — only checkStepTransition needed here.
 
         // Step Transition: 1985-Accurate Encounter Evaluation
         const step = this.skaraBraeGrid.checkStepTransition(headPos.x, headPos.z);
@@ -1610,6 +1792,8 @@ class BardsTaleApp {
             if (this.grimoire && this.grimoire.isOpen) {
               this.grimoire.toggleBookDesktop(false);
             }
+            // Save street position so handleStateTransition(COMBAT_ZONE) doesn't zero the rig.
+            this._lastStreetPosition = { x: headPos.x, z: headPos.z };
             this.pendingCombatEncounter = encounter;
             const enemySummary = encounter.map(g => `${g.quantity} ${g.name}`).join(', ');
             this.showToast(`⚔️ Encounter! ${enemySummary} draw near!`);
@@ -1618,12 +1802,22 @@ class BardsTaleApp {
           }
         }
 
-        // Step-on Teleporter check
+        // Step-on Teleporter check.
+        // _lastTpTile prevents re-firing while the player remains standing on the exit tile.
+        // The cooldown is cleared when the player steps off, not after a fixed 2-second timer.
+        const { sourceX, sourceY } = worldToSource(headPos.x, headPos.z);
+        const currentTile = `${sourceX}_${sourceY}`;
+        if (this._lastTpTile && this._lastTpTile !== currentTile) {
+          // Player has moved off the tile that triggered the last teleport — re-arm.
+          this._lastTpTile = null;
+          this._tpCooldown = false;
+        }
         if (!this._tpCooldown) {
-          const { sourceX, sourceY } = worldToSource(headPos.x, headPos.z);
           if (sourceX === 25 && sourceY === 2) {
+            this._lastTpTile = currentTile;
             this.triggerTeleport({ x: 25, y: 7 });
           } else if (sourceX === 25 && sourceY === 7) {
+            this._lastTpTile = currentTile;
             this.triggerTeleport({ x: 25, y: 2 });
           }
         }

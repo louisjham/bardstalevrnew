@@ -716,6 +716,18 @@ export class CombatEngine {
     }
     if (aliveParty.length === 0) return messages;
 
+    // Build front-row-alive list ONCE here, before iterating monsters.
+    // Reuses _frontRowScratch in-place to avoid per-monster allocations.
+    // Monster melee always prefers front-row targets; only falls back to any
+    // alive member when the entire front row has fallen.
+    const frontRowAlive = this._frontRowScratch;
+    frontRowAlive.length = 0;
+    for (const p of aliveParty) {
+      if (this.isInFrontRow(this.party.indexOf(p))) frontRowAlive.push(p);
+    }
+    // meleeTargetPool: front-row members when available, otherwise entire alive party.
+    const meleeTargetPool = frontRowAlive.length > 0 ? frontRowAlive : aliveParty;
+
     // Special slot creature attacks first if present
     if (this.specialSlot && this.specialSlot.currentHp > 0) {
       const target = this.monsters.find(m => m.currentHp > 0);
@@ -851,21 +863,9 @@ export class CombatEngine {
         continue;
       }
 
-      const targetIdx = Math.floor(Math.random() * aliveParty.length);
-      target = aliveParty[targetIdx];
-      const globalIndex = this.party.indexOf(target);
-
-      if (!this.isInFrontRow(globalIndex)) {
-        // Populate front-row scratch in-place — avoids allocating a new array per monster attack
-        const frontRowAlive = this._frontRowScratch;
-        frontRowAlive.length = 0;
-        for (const p of aliveParty) {
-          if (this.isInFrontRow(this.party.indexOf(p))) frontRowAlive.push(p);
-        }
-        if (frontRowAlive.length > 0) {
-          target = frontRowAlive[Math.floor(Math.random() * frontRowAlive.length)];
-        }
-      }
+      // meleeTargetPool was computed once before the monster loop:
+      // front-row alive members when any survive, else all alive members.
+      target = meleeTargetPool[Math.floor(Math.random() * meleeTargetPool.length)];
 
       const gIdx = this.party.indexOf(target);
       const roll = Math.floor(Math.random() * 20) + 1;

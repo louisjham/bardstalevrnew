@@ -6,17 +6,22 @@ Welcome! This document outlines completed milestones and provides a clear founda
 
 ## ✅ Completed Features & Milestones
 
-### 1. 💻 1980s Retro Room & Floppy Disk Boot Sequence (`src/world/retro-room/RetroRoom.js`)
-- [x] **3D Commodore 64 & 1541 Disk Drive**: Authentic C64 case, keyboard with PETSCII key legends, drive cooling vents, rotating latch lever, and flickering red drive activity LED.
-- [x] **Curved Commodore 1702 CRT Monitor**: Real-time GLSL shader (`src/shaders/CRTMonitorShader.js`) with barrel tube distortion, scanlines, phosphor mask, and bloom.
-- [x] **Stationary Flash-Paper Intro & Fade Transition (Zero Motion Sickness)**:
-  - Eliminated on-rails auto-walk camera interpolation and 360° perspective roll to prevent WebXR motion sickness.
-  - Spawns player stationary in a dark void facing a luminous "The Bard's Tale" title card.
-  - Ignites a radiant flash-paper title flare with swirling vortex particle burst (`VortexPortalShader.js`) that peaks and dissipates over ~2500ms.
-  - Tweens screen-space camera black UI overlay to 1.0 (Fade to Black) and teleports player to fixed stationary position at Tavern bar (seated 1.18m eye height).
-  - Rapid 500ms fade-in-from-black right before the Tavern entrance transition.
+### ✅ Amiga-Style VR Intro Scene & Adventurers Guild Menu (Oct 2026)
+- [x] **AmigaIntroScene (`src/world/intro/AmigaIntroScene.js`)**: Replaced Retro Room with animated VR intro screen.
+  - Full-screen cinema quad (3.2m × 2.4m) with animated Bard sprite, copper bar effect, scrolling Skara Brae story text.
+  - Procedural 8-bit BardSynth music. Any controller button/key press → reveals main menu.
+  - Main menu: New Game (wired to ADVENTURERS_GUILD), Continue, Options, Credits (stubs).
+- [x] **GameLoop renamed** (`src/core/game-loop/GameLoop.js`): `RETRO_ROOM` → `INTRO_SCENE`, `TAVERN_INTRO` → `ADVENTURERS_GUILD`. Legacy aliases preserved for backward compat.
+- [x] **GuildMenuPanel (`src/ui/spatial-hud/GuildMenuPanel.js`)**: Spatial 2D draggable guild management panel.
+  - Point at Bard + trigger → opens. Grab any edge to drag. Room-bounded. X/B button closes.
+  - Top-level options: Create New Character, Add/Remove Character, Name Party, Save Party, Delete Character, Delete Party.
+- [x] **main.js integrated**: All state machine, interaction handlers, render loop, gamepad handlers updated to new states. 82/82 tests still passing.
 
-### 2. 🍺 Skara Brae Tavern (`src/world/FullVRTavern.js`)
+### 1. 💻 1980s Retro Room [REMOVED — replaced by AmigaIntroScene]
+- ~~RetroRoom intro sequence replaced with Amiga-style VR intro in Oct 2026.~~
+- Source preserved at `src/world/retro-room/RetroRoom.js` (test coverage retained).
+
+### 2. 🍺 Skara Brae Tavern → Adventurers Guild (`src/world/FullVRTavern.js`)
 - [x] **Atmospheric Medieval Tavern**: Packed sand/dirt floor with bump normal maps, timber ceiling beams, iron wagon-wheel chandelier with volumetric flames (`TorchFlameShader.js`), stone fireplace, and stained glass.
 - [x] **Live Stage Bard Performer (`src/audio/BardSinger.js` & `BardSynth.js`)**: Real-time Web Audio API procedural lute synthesizer + vocal formant oscillator performing *"The Evil in Skara Brae"* with 3D floating lyric speech bubbles and authentic 1985 Bard sprite billboard (`bt1_bard.png`).
 - [x] **Authentic 1985 Sprite Patrons (`src/textures/AnimatedSprite.js` & `src/data/TavernTutorialData.js`)**:

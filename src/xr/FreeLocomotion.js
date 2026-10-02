@@ -67,6 +67,36 @@ export class FreeLocomotion {
     // Bumper Car Bounce Callback
     this.onBounce = null;
 
+    // Pre-built obstacle tables keyed by game state string.
+    // Built once in the constructor — zero per-frame allocation.
+    this._obstaclesByState = {
+      TAVERN_INTRO: [
+        { type: 'roomBounds', minX: -4.8,  maxX: 4.8,  minZ: -5.8, maxZ: 5.8  },
+        { type: 'box',        minX: -1.4,  maxX: 1.4,  minZ: -5.8, maxZ: -4.6 },
+        { type: 'box',        minX: 1.8,   maxX: 4.8,  minZ: -4.4, maxZ: -0.6 },
+        { type: 'box',        minX: -4.8,  maxX: -1.5, minZ: -5.8, maxZ: -2.6 },
+        { type: 'circle', x: 2.8,  z: -1.8, radius: 0.85 },
+        { type: 'circle', x: -2.8, z: -1.8, radius: 0.85 },
+        { type: 'circle', x: 3.2,  z:  1.8, radius: 0.85 },
+        { type: 'circle', x: -3.2, z:  1.8, radius: 0.85 },
+      ],
+      GARTHS_SHOP: [
+        { type: 'roomBounds', minX: -3.4,  maxX: 3.4,  minZ: -3.6, maxZ: 3.6  },
+        { type: 'box',        minX: -2.6,  maxX: 2.6,  minZ: -1.8, maxZ: -0.4 },
+        { type: 'box',        minX: -3.4,  maxX: -2.6, minZ:  0.2, maxZ:  2.6 },
+        { type: 'box',        minX:  2.6,  maxX:  3.4, minZ:  0.2, maxZ:  2.6 },
+      ],
+      RETRO_ROOM: [
+        { type: 'roomBounds', minX: -2.6, maxX: 2.6,  minZ: -2.1, maxZ: 3.1 },
+        { type: 'box',        minX: -0.9, maxX: 0.9,  minZ: -1.2, maxZ: -0.1 },
+        { type: 'box',        minX:  1.0, maxX: 2.6,  minZ:  0.4, maxZ:  3.0 },
+        { type: 'box',        minX: -2.6, maxX: -1.0, minZ:  1.4, maxZ:  3.0 },
+      ],
+      SKARA_BRAE_STREETS: [
+        { type: 'roomBounds', minX: -5.0, maxX: 55.0, minZ: -25.0, maxZ: 35.0 },
+      ],
+    };
+
     // Pre-allocated reusable vectors
     this._forward = new THREE.Vector3();
     this._side = new THREE.Vector3();
@@ -329,16 +359,36 @@ export class FreeLocomotion {
             let isFistCurled = true;
             if (hand.joints) {
               const indexTip = hand.joints['index-finger-tip'];
-              const wrist = hand.joints['wrist'];
-              if (indexTip && wrist) {
-                const dIndex = indexTip.position ? indexTip.position.length() : 0.05;
-                const middleTip = hand.joints['middle-finger-tip'];
-                const ringTip = hand.joints['ring-finger-tip'];
-                const pinkyTip = hand.joints['pinky-finger-tip'];
+              const wristJoint = hand.joints['wrist'];
+              if (indexTip && wristJoint) {
+                // Use world-space positions relative to the wrist joint, mirroring
+                // the primary WebXR frame path. indexTip.position.length() is the
+                // distance from the scene origin, not the wrist — meaningless in
+                // room-scale setups where the hand is far from origin.
+                const wristWorldPos = new THREE.Vector3();
+                if (typeof wristJoint.getWorldPosition === 'function') {
+                  wristJoint.getWorldPosition(wristWorldPos);
+                } else {
+                  wristWorldPos.copy(wristJoint.position);
+                }
+                const tipPos = new THREE.Vector3();
+                const dIndex = (typeof indexTip.getWorldPosition === 'function')
+                  ? (indexTip.getWorldPosition(tipPos), tipPos.distanceTo(wristWorldPos))
+                  : 0.05;
 
-                const dMiddle = middleTip && middleTip.position ? middleTip.position.length() : dIndex;
-                const dRing = ringTip && ringTip.position ? ringTip.position.length() : dIndex;
-                const dPinky = pinkyTip && pinkyTip.position ? pinkyTip.position.length() : dIndex;
+                const middleTip = hand.joints['middle-finger-tip'];
+                const ringTip   = hand.joints['ring-finger-tip'];
+                const pinkyTip  = hand.joints['pinky-finger-tip'];
+
+                const dMiddle = (middleTip && typeof middleTip.getWorldPosition === 'function')
+                  ? (middleTip.getWorldPosition(tipPos), tipPos.distanceTo(wristWorldPos))
+                  : dIndex;
+                const dRing = (ringTip && typeof ringTip.getWorldPosition === 'function')
+                  ? (ringTip.getWorldPosition(tipPos), tipPos.distanceTo(wristWorldPos))
+                  : dIndex;
+                const dPinky = (pinkyTip && typeof pinkyTip.getWorldPosition === 'function')
+                  ? (pinkyTip.getWorldPosition(tipPos), tipPos.distanceTo(wristWorldPos))
+                  : dIndex;
 
                 const avgDist = (dIndex + dMiddle + dRing + dPinky) / 4.0;
                 isFistCurled = avgDist < 0.125 || (dIndex < 0.12 && dMiddle < 0.12);
@@ -394,48 +444,11 @@ export class FreeLocomotion {
   /**
    * Get list of 2D spatial collision obstacles (room walls, furniture, counters)
    * on the horizontal (X, Z) plane based on the active location.
+   * Returns a pre-built array from _obstaclesByState — zero allocation per call.
    */
   getObstacles(gameState) {
     const state = gameState || this.currentGameState;
-    const obstacles = [];
-
-    if (state === 'TAVERN_INTRO') {
-      // 2D Tavern Perimeter Walls
-      obstacles.push({ type: 'roomBounds', minX: -4.8, maxX: 4.8, minZ: -5.8, maxZ: 5.8 });
-      // 2D Fireplace
-      obstacles.push({ type: 'box', minX: -1.4, maxX: 1.4, minZ: -5.8, maxZ: -4.6 });
-      // 2D Bar Counter
-      obstacles.push({ type: 'box', minX: 1.8, maxX: 4.8, minZ: -4.4, maxZ: -0.6 });
-      // 2D Performer Stage & Bard
-      obstacles.push({ type: 'box', minX: -4.8, maxX: -1.5, minZ: -5.8, maxZ: -2.6 });
-      // 2D Patron Tables (Matching FullVRTavern layout)
-      obstacles.push({ type: 'circle', x: 2.8, z: -1.8, radius: 0.85 });
-      obstacles.push({ type: 'circle', x: -2.8, z: -1.8, radius: 0.85 });
-      obstacles.push({ type: 'circle', x: 3.2, z: 1.8, radius: 0.85 });
-      obstacles.push({ type: 'circle', x: -3.2, z: 1.8, radius: 0.85 });
-    } else if (state === 'GARTHS_SHOP') {
-      // 2D Garth Shop Walls
-      obstacles.push({ type: 'roomBounds', minX: -3.4, maxX: 3.4, minZ: -3.6, maxZ: 3.6 });
-      // 2D Weapon Counter & Garth
-      obstacles.push({ type: 'box', minX: -2.6, maxX: 2.6, minZ: -1.8, maxZ: -0.4 });
-      // 2D Display Shelves
-      obstacles.push({ type: 'box', minX: -3.4, maxX: -2.6, minZ: 0.2, maxZ: 2.6 });
-      obstacles.push({ type: 'box', minX: 2.6, maxX: 3.4, minZ: 0.2, maxZ: 2.6 });
-    } else if (state === 'RETRO_ROOM') {
-      // 2D Bedroom Walls
-      obstacles.push({ type: 'roomBounds', minX: -2.6, maxX: 2.6, minZ: -2.1, maxZ: 3.1 });
-      // 2D Computer Desk
-      obstacles.push({ type: 'box', minX: -0.9, maxX: 0.9, minZ: -1.2, maxZ: -0.1 });
-      // 2D Bed
-      obstacles.push({ type: 'box', minX: 1.0, maxX: 2.6, minZ: 0.4, maxZ: 3.0 });
-      // 2D Dresser
-      obstacles.push({ type: 'box', minX: -2.6, maxX: -1.0, minZ: 1.4, maxZ: 3.0 });
-    } else if (state === 'SKARA_BRAE_STREETS') {
-      // 2D City Limits
-      obstacles.push({ type: 'roomBounds', minX: -5.0, maxX: 55.0, minZ: -25.0, maxZ: 35.0 });
-    }
-
-    return obstacles;
+    return this._obstaclesByState[state] || [];
   }
 
   /**

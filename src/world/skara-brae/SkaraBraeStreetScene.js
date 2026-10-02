@@ -13,6 +13,7 @@ import {
 import { TextureGenerator } from '../../textures/TextureGenerator.js';
 import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
 import { getLocationSpritePath } from '../../data/GameLocationSpriteManifest.js';
+import { createStreetLampPost, createStorefrontDoor, createGranPlazObelisk } from './StreetPropsFactory.js';
 
 /**
  * SkaraBraeStreetScene - Authentic 3D City of Skara Brae
@@ -381,22 +382,13 @@ export class SkaraBraeStreetScene {
 
     torchNodes.forEach((node) => {
       const { worldX, worldZ } = sourceToWorld(node.x, node.y);
-      const postMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 });
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.8), postMat);
-      post.position.set(worldX + 1.2, 1.4, worldZ + 1.2);
-      this.sceneGroup.add(post);
-      this.disposables.push(postMat, post.geometry);
 
-      const lampHead = new THREE.Mesh(
-        new THREE.SphereGeometry(0.12, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0xf59e0b })
-      );
-      lampHead.position.set(worldX + 1.2, 2.8, worldZ + 1.2);
-      this.sceneGroup.add(lampHead);
-      this.disposables.push(lampHead.geometry, lampHead.material);
+      const lampPostGroup = createStreetLampPost();
+      lampPostGroup.position.set(worldX + 1.2, 0, worldZ + 1.2);
+      this.sceneGroup.add(lampPostGroup);
 
       const light = new THREE.PointLight(0xf59e0b, 2.6, 9.0);
-      light.position.set(worldX + 1.2, 2.8, worldZ + 1.2);
+      light.position.set(worldX + 1.2, 2.85, worldZ + 1.2);
       this.sceneGroup.add(light);
 
       this.torches.push({ light, baseIntensity: 2.6 });
@@ -1077,21 +1069,8 @@ export class SkaraBraeStreetScene {
     // ─── 2. GRAN PLAZ CENTRAL MONUMENT (15, 15) ─────────────────────────
     {
       const { worldX, worldZ } = sourceToWorld(15, 15);
-      const plazaGroup = new THREE.Group();
+      const plazaGroup = createGranPlazObelisk();
       plazaGroup.position.set(worldX, 0, worldZ);
-
-      // Monument Plinth
-      const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 0.6, 16), baseMat);
-      base.position.y = 0.3;
-      plazaGroup.add(base);
-
-      // Obelisk
-      const obeliskMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 });
-      const obelisk = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.6, 4), obeliskMat);
-      obelisk.position.y = 2.4;
-      obelisk.rotation.y = Math.PI / 4;
-      plazaGroup.add(obelisk);
 
       // Plaque Billboard
       const plaqueTex = TextureGenerator.createGranPlazMonumentTexture();
@@ -1100,7 +1079,7 @@ export class SkaraBraeStreetScene {
       plaque.position.y = 1.4;
       plazaGroup.add(plaque);
       this.billboardObjects.push(plaque);
-      this.disposables.push(baseMat, obeliskMat, plaqueTex, plaqueMat, base.geometry, obelisk.geometry, plaque.geometry);
+      this.disposables.push(plaqueTex, plaqueMat, plaque.geometry);
 
       const hitBox = new THREE.Mesh(new THREE.BoxGeometry(2.5, 4.0, 2.5), new THREE.MeshBasicMaterial({ visible: false }));
       hitBox.position.y = 2.0;

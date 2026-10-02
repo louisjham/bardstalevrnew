@@ -9,13 +9,30 @@ This file serves as persistent memory between agent sessions. Any agent starting
 The Bard's Tale VR is a WebXR + Three.js immersive VR/Desktop adaptation of the 1985 CRPG *The Bard's Tale*.
 
 ### 🕹️ 5-Location Game Loop (`src/core/game-loop/GameLoop.js`)
-1. **1980s Retro C64 Desk & Stationary Dark Void Flare (`src/world/retro-room/RetroRoom.js`)**:
-   - 3D Commodore 64, 1541 floppy drive with LED, CRT barrel/scanline shader (`CRTMonitorShader.js`).
-   - **Stationary Flash-Paper Intro**: Zero camera interpolation/auto-walk to eliminate WebXR motion sickness. Spawns player stationary in a dark void facing a radiant golden "The Bard's Tale" title card and flaring vortex particle burst (~2500ms).
-   - Tweens camera screen-space black UI plane to opacity 1.0 (Fade to Black), teleports player directly to stationary fixed Tavern bar position (eye height preserved at 1.18m), followed by a 500ms rapid fade-in-from-black right before the Tavern entrance transition.
+1. **🎵 Amiga-Style VR Intro Scene (`src/world/intro/AmigaIntroScene.js`)** — `GameState.INTRO_SCENE`:
+   - Full-screen VR cinema quad showing animated Amiga Bard sprite + copper bar effect + scrolling story text.
+   - 8-bit procedural music. Any button → main menu (New Game / Continue / Options / Credits). New Game → Guild.
+   - Legacy alias: `GameState.RETRO_ROOM` maps to `INTRO_SCENE`.
+2. **🛡️ Adventurers Guild (`src/world/FullVRTavern.js`)** — `GameState.ADVENTURERS_GUILD` (was `TAVERN_INTRO`):
+   - Same tavern environment repurposed as Adventurers Guild.
+   - **Guild Menu (`src/ui/spatial-hud/GuildMenuPanel.js`)**: Point at Bard + trigger → opens movable 2D spatial panel. Grab edges to drag. Bounded by room. X/B to close.
+   - Top-level options: Create New Character, Add/Remove from Party, Name Party, Save Party, Delete Character, Delete Party.
+   - Legacy alias: `GameState.TAVERN_INTRO` maps to `ADVENTURERS_GUILD`.
+     - Includes high-detail 3D procedural fallbacks for Commodore 64 (rainbow C= logo & slanted PETSCII keyboard), 1541 Disk Drive (top cooling vents, drive slot, red/green LEDs), Atari 8-way Joystick (fire button), and Lava Lamp (pulsing glow).
+   - **6-Phase Automated Cinematic Intro** (zero player interaction, zero camera motion for WebXR motion-sickness safety):
+     - Phase 1 **FADE_IN** (1500ms): Black screen fades in to reveal the full 1980s bedroom with C64, disk drive, and floppy disk directly in front of the player.
+     - Phase 2 **DISK_INSERT** (800ms): Floppy disk auto-slides into the 1541 drive with eased animation, red drive LED activates.
+     - Phase 3 **BOOT_SEQUENCE** (3500ms): CRT blinks on (brief static burst), then types C64 BASIC boot text character-by-character (`**** COMMODORE 64 BASIC V2 ****`, `LOAD "Louis F Ham presents",8,1`, `SEARCHING...`, `LOADING`, `RUN`) with blinking cursor and drive LED flicker.
+     - Phase 4 **FADE_TO_BLACK** (800ms): Screen fades to solid black.
+     - Phase 5 **TITLE_CARD** (2800ms): Golden "The Bard's Tale" title card ignites with vortex flash-paper flare and particle burst in dark void.
+     - Phase 6 **TRANSITION**: Fires callback → enters Tavern with 500ms fade-in-from-black.
+   - Total cinematic duration: ~10.3 seconds. `skipCinematic()` available for instant skip.
 2. **Skara Brae Tavern (`src/world/FullVRTavern.js`)**:
    - 1985 authentic animated sprite billboards (`AnimatedSprite.js`) for the 4 seated patrons (*Paladin, Wizard, Dwarf, Hobbit*) and the Bard on stage.
    - **Tactile Tavern Raycast Recruitment**: Replaced static tavern dialogue with direct raycast recruitment of seated patrons and the Bard. Recruits hop 0.2m with gold tint (`0xffea00`), colliders are removed from raycaster to prevent duplicates, and recruits queue into `pendingRecruits` (up to 6 heroes).
+   - **Modular 3D Tavern Furniture Factory (`src/world/tavern/TavernFurnitureFactory.js`)**:
+     - Built dedicated 3D tavern furniture construction module with dynamic `GLTFLoader` support for `.glb` models (`table.glb`, `bench.glb`, `bar_counter.glb`, `barrel.glb`, `mug.glb`, `chandelier.glb`).
+     - Includes detailed 3D procedural fallbacks for Heavy Oak Slab Tables (iron corner brackets & rivets), Trestle Benches, Ale Tankards (amber liquid surface & white foam ring), and Oak Wine Barrels with iron hoops & brass tap spigot.
    - Live procedural lute & singing voice (`BardSynth.js`, `BardSinger.js`) with 3D floating lyric bubbles.
    - Quest 2/3 Touch controller door interaction (any button press enters Skara Brae / Garth's Shop).
 3. **Garth's Weapons & Wonders (`src/world/garths-shop/GarthsShop.js`)**:
@@ -28,11 +45,20 @@ The Bard's Tale VR is a WebXR + Three.js immersive VR/Desktop adaptation of the 
      - *Broadsword / Battleaxe / Warhammer* ➔ **Warrior**
    - Automatically equips starter gear (`autoEquipCharacter`) and syncs party across HUD/Grimoire.
    - Physical 3D weapons on counter pedestals with 6DOF VR Grip grab and Desktop click/`[G]`/`[E]` grab.
+   - **Modular 3D Weapon Factory & GLTFLoader Pipeline (`src/world/garths-shop/WeaponFactory.js`)**:
+     - Integrated `GLTFLoader` to dynamically stream `.glb` weapon models from `public/assets/models/weapons/` (e.g. `magic-sword.glb`, `broadsword.glb`, `battleaxe.glb`, `shield.glb`, `staff.glb`, `lute.glb`, `warhammer.glb`, `dagger.glb`).
+     - Includes ultra-detailed 3D procedural fallback models for all 7 weapon types (fuller-grooved broadsword with flared brass quillons, double-bevelled battleaxe with iron bands, heater shield with rivets & boss, wizard staff with crown claw & glowing mana crystal, 12-string acoustic lute with rosette soundboard, steel-flanged warhammer with armor-piercing spike, brass S-guard dagger).
    - Dynamic weapon physics swinging ($> 1.6\text{ m/s}$ in VR or Left Click/Space on Desktop) with whoosh audio (`playSwordSwing()`), haptic vibration, and blade spark trails.
 4. **Canonical 30×30 Skara Brae City Grid (`src/world/skara-brae/SkaraBraeStreetScene.js`)**:
    - Exact 1985 30×30 city grid with Adventurers Guild, Temples (Tarjan & Divine Light), Review Board, Roscoe's Energy Emporium, and dynamic Day/Night lighting and SP regeneration.
+   - **Modular 3D Street Props Factory (`src/world/skara-brae/StreetPropsFactory.js`)**:
+     - Built dedicated 3D street prop construction module with dynamic `GLTFLoader` support for `.glb` models (`lamp_post.glb`, `door.glb`, `obelisk.glb`).
+     - Includes high-detail 3D procedural fallbacks for Medieval Street Lamp Posts (turned iron shaft, crossbar brackets, glowing amber glass orb), Storefront Arched Wooden Doors (iron strap hinges, rivets, brass ring handle), and Gran Plaz White Marble Obelisk Monument (two-tiered octagonal plinth steps & 4-sided spire).
 5. **3D Combat Arena (`src/world/combat-zone/CombatArena.js`)**:
    - Runic arena floor, front/back row party formation, monster sprites, and full CRPG d20 combat mechanics.
+   - **Modular 3D Arena Props Factory (`src/world/combat-zone/ArenaPropsFactory.js`)**:
+     - Built dedicated 3D arena/dungeon prop construction module with dynamic `GLTFLoader` support for `.glb` models (`brazier.glb`, `pillar.glb`, `chest.glb`).
+     - Includes high-detail 3D procedural fallbacks for Standing Magical Braziers (tripod legs, fluted shaft, flared spiked fire bowl, glowing runic ember orb), Carved Dungeon Stone Pillars, and Iron-Banded Treasure Chests with keyhole lockplates.
    - **WebXR Spatial Narrative Combat Scroll (`src/ui/spatial-hud/SpatialCombatScroll.js`, `src/core/utils/MessageSpooler.js`, `src/core/combat/CombatNarrativeGrammar.js`)**:
      - Cylindrical curved wraparound parchment UI (`THREE.CylinderGeometry`, radius 2.0, height 1.0, radialSegments 32, thetaLength 0.6) locked in player's FOV (lower-right quadrant, angled inward).
      - 512×512 CanvasTexture with `THREE.NearestFilter` for authentic retro monospace pixel text.

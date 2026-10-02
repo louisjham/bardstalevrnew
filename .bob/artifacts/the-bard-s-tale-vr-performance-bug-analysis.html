@@ -1,0 +1,278 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>The Bard's Tale VR — Performance &amp; Bug Analysis</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; background: #ffffff; color: #1f2328; padding: 32px 16px; }
+  .wrapper { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 28px; }
+  h2 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+  .finding { background: #f7f8fa; border: 1px solid #e5e7eb; border-left: 4px solid #e5e7eb; border-radius: 5px; padding: 12px 14px; margin-bottom: 10px; }
+  .finding.crit  { border-left-color: #dc2626; }
+  .finding.high  { border-left-color: #ea580c; }
+  .finding.med   { border-left-color: #ca8a04; }
+  .finding.low   { border-left-color: #3b82d4; }
+  .finding-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  .badge.crit  { background: #fef2f2; color: #dc2626; }
+  .badge.high  { background: #fff7ed; color: #ea580c; }
+  .badge.med   { background: #fefce8; color: #ca8a04; }
+  .badge.low   { background: #eff6ff; color: #3b82d4; }
+  .badge.perf  { background: #f5f3ff; color: #7c3aed; }
+  .badge.bug   { background: #fef2f2; color: #b91c1c; }
+  .badge.type-perf { background: #f5f3ff; color: #7c5cd8; }
+  .badge.type-bug  { background: #fff0f0; color: #c0392b; }
+  .finding-title { font-weight: 600; font-size: 14px; }
+  .file-ref { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; color: #57606a; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; margin-bottom: 6px; display: inline-block; }
+  .desc { font-size: 13px; color: #1f2328; margin-top: 4px; }
+  .desc p { margin-bottom: 5px; }
+  .desc code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }
+  .desc ul { padding-left: 18px; margin-top: 4px; }
+  .desc li { margin-bottom: 3px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+  .summary-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; text-align: center; }
+  .summary-card .count { font-size: 28px; font-weight: 800; }
+  .summary-card .label { font-size: 12px; color: #57606a; }
+  .summary-card.crit  { border-top: 3px solid #dc2626; }
+  .summary-card.high  { border-top: 3px solid #ea580c; }
+  .summary-card.med   { border-top: 3px solid #ca8a04; }
+  .summary-card.low   { border-top: 3px solid #3b82d4; }
+  .section-intro { color: #57606a; font-size: 13px; margin-bottom: 14px; }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #57606a; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <h1>The Bard's Tale VR — Performance &amp; Bug Analysis</h1>
+  <p class="subtitle">Full audit of <code>src/</code> across 45+ files  ·  Checked against 82/82 unit tests  ·  Focus: XR 90 Hz budget, desktop compatibility, game correctness</p>
+
+  <div class="summary-grid">
+    <div class="summary-card crit"><div class="count" style="color:#dc2626">3</div><div class="label">Critical</div></div>
+    <div class="summary-card high"><div class="count" style="color:#ea580c">5</div><div class="label">High</div></div>
+    <div class="summary-card med"><div class="count" style="color:#ca8a04">5</div><div class="label">Medium</div></div>
+    <div class="summary-card low"><div class="count" style="color:#3b82d4">4</div><div class="label">Low / Polish</div></div>
+  </div>
+
+  
+  <h2>🔴 Critical</h2>
+  <p class="section-intro">These issues can produce incorrect game state, silent data corruption, or hard crashes in regular play.</p>
+
+  <div class="finding crit">
+    <div class="finding-header">
+      <span class="badge crit">Critical</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title">MessageSpooler — <code>enqueueAndWait</code> resolves too early on concurrent calls</span>
+    </div>
+    <span class="file-ref">src/core/utils/MessageSpooler.js · lines 63–78</span>
+    <div class="desc">
+      <p><code>enqueueAndWait</code> registers a <code>'complete'</code> listener, then calls <code>enqueue()</code>. If the queue was already processing when this is called, <code>enqueue()</code> does <em>not</em> restart the loop (correct), but the <code>onDone</code> guard checks <code>this.queue.length === 0 &amp;&amp; !this.isProcessing</code>. Because the earlier batch might drain and fire <code>'complete'</code> before the newly-pushed messages reach the front, the promise can resolve while messages are still mid-queue or mid-type. In combat with rapid multi-hero actions, the next round can begin before the narrative scroll finishes, breaking the suspenseful action-by-action pacing guarantee.</p>
+      <p><strong>Fix:</strong> Track a per-call "high-water mark" queue position at enqueue time and only resolve when all items up to that mark have been processed, rather than relying on the generic <code>'complete'</code> event.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="finding-header">
+      <span class="badge crit">Critical</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title">Combat engine — back-row member can be melee-targeted when no front-row heroes survive</span>
+    </div>
+    <span class="file-ref">src/core/combat/CombatEngine.js · lines 854–868 (executeMonsterPhase)</span>
+    <div class="desc">
+      <p>Monster melee targeting first picks a random alive party member (<code>aliveParty[targetIdx]</code>), then checks <code>isInFrontRow</code>. If the back-row member is selected <em>and</em> no front-row member is alive, <code>frontRowAlive</code> will be empty and the code falls through — leaving <code>target</code> pointing at the originally-selected back-row member, which is correct in that edge case. However, the front-row scratch filter also calls <code>this.party.indexOf(p)</code> inside a tight loop over <code>aliveParty</code>, which can grow O(n²) as party size and monster group size increase. More critically, the fallback target is never re-assigned when <code>frontRowAlive.length === 0</code>; a back-row Conjurer can be struck by monsters even when a front-row Warrior is alive — whenever <code>Math.random()</code> happens to pick the back-row index first.</p>
+      <p><strong>Fix:</strong> Build the front-row filter once before the monster loop, and only fall back to back-row targets when <code>frontRowAlive.length === 0</code>.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="finding-header">
+      <span class="badge crit">Critical</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>triggerCinematicIntro</code> — leaked <code>requestAnimationFrame</code> loop on rapid restart</span>
+    </div>
+    <span class="file-ref">src/world/retro-room/RetroRoom.js · lines 1229–1441 (animateCinematic)</span>
+    <div class="desc">
+      <p>The cinematic loop guards on <code>this.isFlashPaperActive</code> at its top. <code>reset()</code> sets <code>isFlashPaperActive = false</code>, but <code>triggerCinematicIntro</code> immediately sets it back to <code>true</code> before scheduling the <code>requestAnimationFrame</code>. If the user presses <strong>[R]</strong> (restart) while the cinematic is in any phase other than FADE_IN, the guard fires correctly on the <em>old</em> frame callback. However the outer condition is checked only at the very top of <code>animateCinematic</code>; phases 2–5 use an early-return pattern that calls <code>requestAnimationFrame(animateCinematic)</code> <em>before</em> the guard check executes on the next tick. This means a rapid double-restart schedules two concurrent cinematic loops running in parallel — mutating <code>this.screenOverlay.material.opacity</code> and the floppy disk position from two competing callbacks simultaneously.</p>
+      <p><strong>Fix:</strong> Introduce a unique generation token (e.g., <code>this._cinematicGeneration++</code>) captured by closure in each loop invocation; bail out if the captured token no longer matches the current one.</p>
+    </div>
+  </div>
+
+  
+  <h2>🟠 High</h2>
+  <p class="section-intro">These cause noticeable gameplay incorrectness or measurable performance overhead on XR hardware.</p>
+
+  <div class="finding high">
+    <div class="finding-header">
+      <span class="badge high">High</span><span class="badge type-perf">Performance</span>
+      <span class="finding-title">Main loop — <code>revealTile</code> called 2–3× per frame in SKARA_BRAE_STREETS</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 1465–1469, 1598–1601</span>
+    <div class="desc">
+      <p>During street exploration, <code>skaraBraeGrid.revealTile(headPos.x, headPos.z)</code> is called in the <em>locomotion block</em> (line 1468), then again inside the SKARA_BRAE_STREETS render block (line 1601), and again via <code>locomotion.update()</code> itself (FreeLocomotion.js line 744). Each call invokes <code>worldToSource</code> — a coordinate transform — and writes to the explored grid. Three identical calls per frame for a no-op that only needs to fire once per tile step.</p>
+      <p><strong>Fix:</strong> Remove the duplicate calls in the main loop; the single call inside <code>FreeLocomotion.update()</code> (which already gates on the grid reference) is sufficient, or promote it to a single post-locomotion call in <code>startLoop</code>.</p>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="finding-header">
+      <span class="badge high">High</span><span class="badge type-perf">Performance</span>
+      <span class="finding-title">Center reticle raycast runs full scene traversal every frame when Grimoire is closed</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 1006–1174 (updateCenterReticle)</span>
+    <div class="desc">
+      <p><code>updateCenterReticle()</code> is called every frame when not in VR mode and executes up to 4 <code>raycaster.intersectObjects(..., true)</code> calls per frame (Grimoire, state-specific interactables, dialogue mesh, monsters, heroes, buttons). The <code>true</code> recursive flag means Three.js traverses every descendant of every interactable group. In COMBAT_ZONE this can mean traversing monster billboard groups, hero groups, and button groups — 3 full tree walks per frame at 60+ fps on desktop.</p>
+      <p><strong>Fix:</strong> Pre-flatten interactable lists to leaf meshes once (on scene entry) rather than passing parent groups with <code>recursive: true</code>. Additionally, gate <code>updateCenterReticle</code> behind a dirty flag that skips the call when the player hasn't moved or the scene hasn't changed.</p>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="finding-header">
+      <span class="badge high">High</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title">Day/Night HUD DOM query inside the render loop allocates 3 elements per frame</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 1563–1585</span>
+    <div class="desc">
+      <p>Every frame calls <code>document.getElementById('day-night-icon')</code>, <code>document.getElementById('day-night-text')</code>, and <code>document.getElementById('day-night-services')</code> — three synchronous DOM lookups at 60–90 fps (5,400 DOM queries/sec at 90 Hz VR). These lookups are not expensive per call but they prevent Blink/V8 from inline-caching the result and trigger layout style recalculations whenever <code>.textContent</code> or <code>.className</code> changes.</p>
+      <p><strong>Fix:</strong> Cache these three element references in the constructor (or on first access) as instance properties. Update DOM only when the phase or remaining-seconds value actually changes.</p>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="finding-header">
+      <span class="badge high">High</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>animateRecruitment</code> — <code>setInterval</code> hop animation leaks if mesh is removed mid-hop</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 500–523</span>
+    <div class="desc">
+      <p>The patron hop uses <code>setInterval(hop, 16)</code> directly on <code>animTarget.position.y</code>. If the game state transitions away from the Tavern (e.g. the player presses [R] or fills the party while a hop is still in progress), <code>animTarget</code> may belong to a now-invisible or disposed scene graph. The interval continues executing for the remaining ~160ms, writing to a stale object. Additionally, if <code>recruitPatron</code> is called multiple times quickly (e.g. rapid gamepad presses), multiple intervals accumulate on the same mesh, causing erratic vertical jitter.</p>
+      <p><strong>Fix:</strong> Replace <code>setInterval</code> with a small tween tracked in a per-mesh <code>userData.hopInterval</code> slot, clearing the previous one before starting a new one. Alternatively, use the existing <code>renderer.setAnimationLoop</code> tick for animation rather than a detached timer.</p>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="finding-header">
+      <span class="badge high">High</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>fadeInFromBlack</code> / <code>fadeOutToBlack</code> — parallel <code>requestAnimationFrame</code> loops can fight each other</span>
+    </div>
+    <span class="file-ref">src/world/retro-room/RetroRoom.js · lines 1631–1672</span>
+    <div class="desc">
+      <p>Both fade methods create their own anonymous <code>requestAnimationFrame</code> loop writing to <code>this.screenOverlay.material.opacity</code>. There is no cancellation handle (<code>cancelAnimationFrame</code>). If <code>fadeInFromBlack</code> is called while a <code>fadeOutToBlack</code> loop is still in flight (e.g. a state transition triggers a fade-in before the preceding fade-out finishes), both callbacks mutate the same opacity concurrently, causing flickering. The main loop <em>also</em> nudges <code>screenOverlay.material.opacity</code> passively (main.js line 1489), creating a three-way race.</p>
+      <p><strong>Fix:</strong> Store the RAF handle and cancel previous animations before starting a new one. Consolidate the passive main-loop nudge into the dedicated fade methods.</p>
+    </div>
+  </div>
+
+  
+  <h2>🟡 Medium</h2>
+  <p class="section-intro">Correctness edge cases and moderate per-frame waste that accumulates on Quest hardware.</p>
+
+  <div class="finding med">
+    <div class="finding-header">
+      <span class="badge med">Medium</span><span class="badge type-perf">Performance</span>
+      <span class="finding-title">VR button polling iterates all <code>inputSources</code> every frame instead of using events</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 1532–1547</span>
+    <div class="desc">
+      <p>The Y/X button toggle for the Grimoire polls <code>xrSession.inputSources</code> with a <code>for</code> loop and checks <code>.pressed</code> state every animation frame. The 400ms cooldown prevents double-fires but the loop still runs every frame (90× per second). The same check is also performed again inside <code>XRManager</code>'s own source loop. Prefer <code>xrsession.addEventListener('inputsourceschange', ...)</code> or the existing <code>xr.onSelectStart</code> / <code>onSqueezeStart</code> dispatch to handle this event-driven rather than polled.</p>
+    </div>
+  </div>
+
+  <div class="finding med">
+    <div class="finding-header">
+      <span class="badge med">Medium</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>bestowWeaponClass</code> always creates character with race <code>'Human'</code></span>
+    </div>
+    <span class="file-ref">src/main.js · line 570</span>
+    <div class="desc">
+      <p>When a player recruits patrons in the Tavern, their sprite identity (Paladin, Wizard, Dwarf, Hobbit) is stored in <code>userData.name</code>. When a weapon is later bestowed in Garth's shop, <code>createCharacter(recruit, 'Human', assignedClass)</code> hardcodes the race as <code>'Human'</code> regardless of the patron identity. A recruited Dwarf patron becomes a Human Warrior, losing racial stat bonuses (Constitution +2, Agility -1, etc.) defined in <code>RaceClassData.js</code>.</p>
+      <p><strong>Fix:</strong> Store both <code>name</code> and <code>race</code> in the recruit queue entry when the patron is clicked (read from <code>TAVERN_TUTORIAL_PATRONS[key].race</code>), and pass it to <code>createCharacter</code>.</p>
+    </div>
+  </div>
+
+  <div class="finding med">
+    <div class="finding-header">
+      <span class="badge med">Medium</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>getObstacles</code> allocates a new array and obstacle objects every frame</span>
+    </div>
+    <span class="file-ref">src/xr/FreeLocomotion.js · lines 398–439</span>
+    <div class="desc">
+      <p><code>applyBumperCarCollisions()</code> calls <code>getObstacles(gameState)</code> every frame, which creates a fresh <code>obstacles</code> array and pushes 4–7 new object literals into it. At 90 Hz VR, this generates ~630 short-lived objects per second for GC. The game state only changes on explicit transitions, so the obstacle set is static between transitions.</p>
+      <p><strong>Fix:</strong> Cache the obstacle array as <code>this._obstacleCache</code> keyed by <code>gameState</code>. Rebuild only when <code>this.currentGameState</code> changes (already tracked). This eliminates per-frame allocation entirely.</p>
+    </div>
+  </div>
+
+  <div class="finding med">
+    <div class="finding-header">
+      <span class="badge med">Medium</span><span class="badge type-perf">Performance</span>
+      <span class="finding-title">LED flicker uses <code>Math.random()</code> from two separate code paths simultaneously</span>
+    </div>
+    <span class="file-ref">src/world/retro-room/RetroRoom.js · lines 1308–1310 &amp; 1626–1628</span>
+    <div class="desc">
+      <p>During the boot cinematic, the drive LED flicker is driven by <code>Math.random()</code> inside <code>animateCinematic</code> (via RAF). Simultaneously, <code>RetroRoom.update()</code> is called from the main render loop, which also updates <code>driveLedLight.intensity</code> via <code>Math.random()</code> when <code>this.isBooting</code> is true. Both paths write to the same light every frame, meaning two competing random flickering values are applied each frame — only the last writer wins, but both call <code>Math.random()</code> unnecessarily.</p>
+      <p><strong>Fix:</strong> Remove the duplicate flicker from <code>animateCinematic</code> and let <code>update()</code> own all LED animation. Or vice versa — pick one owner.</p>
+    </div>
+  </div>
+
+  <div class="finding med">
+    <div class="finding-header">
+      <span class="badge med">Medium</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>handleStateTransition</code> shows toast on <em>every</em> state change including internal ones</span>
+    </div>
+    <span class="file-ref">src/main.js · line 378</span>
+    <div class="desc">
+      <p><code>handleStateTransition</code> unconditionally fires <code>this.showToast("🌌 Transitioning Location: ${newState}")</code> at the top of the method on every state change. This means every time <code>ensureStarterParty()</code> indirectly triggers a party sync that causes <code>setState</code> to re-enter the same state, the toast fires. More visibly, it overlaps with the descriptive toasts each branch fires on its own (e.g. "🍺 Welcome to Skara Brae Tavern!" fires 500ms after the debug transition toast). The debug toast is user-visible pollution in production.</p>
+      <p><strong>Fix:</strong> Remove the debug toast from <code>handleStateTransition</code> or gate it behind a <code>DEBUG</code> flag.</p>
+    </div>
+  </div>
+
+  
+  <h2>🔵 Low / Polish</h2>
+  <p class="section-intro">Minor correctness gaps and low-impact waste worth a quick fix.</p>
+
+  <div class="finding low">
+    <div class="finding-header">
+      <span class="badge low">Low</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>handleStateTransition(COMBAT_ZONE)</code> re-positions XR rig to origin, discarding street position</span>
+    </div>
+    <span class="file-ref">src/main.js · line 482</span>
+    <div class="desc">
+      <p><code>this.xrRig.setPosition(0, 0, 0)</code> is called unconditionally when entering <code>COMBAT_ZONE</code>. On return from combat (<code>onCombatEnd</code> fires <code>setState(TAVERN_INTRO)</code>), the player is teleported to the Tavern rather than back to the street tile they were on. The intended post-combat return is hard-coded to the Tavern, which is by design, but the rig zeroing means that if combat state is entered via a direct HUD button (the "⚔️ 3D Combat" button, line 1000), the rig is also zeroed — which breaks the Grimoire automap position on return.</p>
+    </div>
+  </div>
+
+  <div class="finding low">
+    <div class="finding-header">
+      <span class="badge low">Low</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title">Teleporter at (25,2) ↔ (25,7) fires every frame while standing on the tile</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 1622–1628</span>
+    <div class="desc">
+      <p>The step-on teleporter check runs inside the SKARA_BRAE_STREETS render block every frame and only guards on <code>this._tpCooldown</code>. The cooldown is set to 2000ms. If the player stands still on tile (25,2) or (25,7), the teleporter fires once, the cooldown starts, and re-fires again 2 seconds later while the player is still standing on the exit tile — resulting in a back-and-forth ping-pong every 2s. The teleport should also check that the player has moved off the trigger tile before re-arming.</p>
+    </div>
+  </div>
+
+  <div class="finding low">
+    <div class="finding-header">
+      <span class="badge low">Low</span><span class="badge type-perf">Performance</span>
+      <span class="finding-title">FLAME spell effect: particle geometry and material re-created on every cast</span>
+    </div>
+    <span class="file-ref">src/main.js · lines 288–304 (triggerLiveSpellTesting)</span>
+    <div class="desc">
+      <p>Each cast of the FLAME spell allocates a new <code>THREE.BufferGeometry</code>, a new <code>Float32Array(120)</code>, a new <code>THREE.BufferAttribute</code>, and a new <code>THREE.PointsMaterial</code>. These are added to the camera and cleaned up 2 seconds later. Repeated rapid casting (e.g. testing from the Grimoire Spellbook tab) grows the <code>activeSpellEffects</code> array and creates GC pressure. A pooled, pre-allocated particle system would serve all FLAME casts.</p>
+    </div>
+  </div>
+
+  <div class="finding low">
+    <div class="finding-header">
+      <span class="badge low">Low</span><span class="badge type-bug">Bug</span>
+      <span class="finding-title"><code>_checkRaisedFistAndSteering</code> fallback path uses <code>indexTip.position.length()</code> instead of wrist-relative distance</span>
+    </div>
+    <span class="file-ref">src/xr/FreeLocomotion.js · lines 334–342</span>
+    <div class="desc">
+      <p>In the Three.js scene-graph fallback (path 2), fist detection computes <code>indexTip.position.length()</code> — the distance of the joint from the scene origin — rather than from the wrist joint, making the fist threshold meaningless in any room-scale scenario where the hand is not near the world origin. The primary WebXR frame path (path 1) correctly uses <code>_jointDist(indexPose.transform.position, wristPose.transform.position)</code>. This fallback is exercised in unit tests and in custom rig setups.</p>
+      <p><strong>Fix:</strong> Compute the wrist world position via <code>hand.joints['wrist'].getWorldPosition</code> and measure distance from it, mirroring the primary path logic.</p>
+    </div>
+  </div>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

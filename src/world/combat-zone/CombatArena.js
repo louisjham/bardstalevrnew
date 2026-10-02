@@ -7,6 +7,7 @@ import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
 import { SpatialCombatScroll } from '../../ui/spatial-hud/SpatialCombatScroll.js';
 import { MessageSpooler } from '../../core/utils/MessageSpooler.js';
 import { EncounterGenerator } from '../../core/encounter/EncounterGenerator.js';
+import { createStandingBrazier, createArenaPillar, createTreasureChest } from './ArenaPropsFactory.js';
 
 export class CombatArena {
   constructor(scene, camera, onCombatEnd, xrRig = null, synth = null) {
@@ -140,27 +141,10 @@ export class CombatArena {
       [4.0, 0, 1.0]
     ];
 
-    const standMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, metalness: 0.8 });
-    const flameMat = new THREE.MeshStandardMaterial({
-      color: 0xc084fc,
-      emissive: 0xa855f7,
-      emissiveIntensity: 1.2
-    });
-
     brazierPositions.forEach(pos => {
-      const stand = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.2, 0.3, 1.2),
-        standMat
-      );
-      stand.position.set(...pos);
-      this.arenaGroup.add(stand);
-
-      const flameOrb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18, 8, 8),
-        flameMat
-      );
-      flameOrb.position.set(pos[0], 1.35, pos[2]);
-      this.arenaGroup.add(flameOrb);
+      const brazier = createStandingBrazier();
+      brazier.position.set(...pos);
+      this.arenaGroup.add(brazier);
     });
   }
 

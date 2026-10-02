@@ -3,6 +3,7 @@ import { TextureGenerator } from '../../textures/TextureGenerator.js';
 import { GARTH_STANDARD_ITEMS, canClassUseItem, ItemCategory, autoEquipParty } from '../../data/ItemDatabase.js';
 import { TorchFlameShader } from '../../shaders/TorchFlameShader.js';
 import { AnimatedSpriteManager } from '../../textures/AnimatedSprite.js';
+import { createWeaponModel } from './WeaponFactory.js';
 
 export class GarthsShop {
   constructor(scene, camera, onExitToSkaraBrae, party, onOpenCharacterCards, onToast) {
@@ -348,169 +349,15 @@ export class GarthsShop {
     const spacing = 0.54;
 
     weaponItems.forEach((item, index) => {
+      // Build high-fidelity 3D weapon model (procedural fallback + async GLTF loader)
+      const weaponModelMesh = createWeaponModel(item.modelType, (container, glbScene) => {
+        // Adjust badge position when GLB replaces procedural mesh if needed
+      });
+
       const weaponGroup = new THREE.Group();
       const xPos = startX + index * spacing;
       weaponGroup.position.set(xPos, 0.98, -2.15);
-
-      // Construct detailed 3D model per weapon type
-      if (item.modelType === 'SWORD') {
-        // Broadsword
-        const blade = new THREE.Mesh(
-          new THREE.BoxGeometry(0.06, 0.015, 0.6),
-          new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.9, roughness: 0.2 })
-        );
-        blade.position.set(0, 0.02, 0);
-        weaponGroup.add(blade);
-
-        const guard = new THREE.Mesh(
-          new THREE.BoxGeometry(0.18, 0.02, 0.03),
-          new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.3 })
-        );
-        guard.position.set(0, 0.02, 0.28);
-        weaponGroup.add(guard);
-
-        const grip = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.018, 0.018, 0.16),
-          new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
-        );
-        grip.rotation.x = Math.PI / 2;
-        grip.position.set(0, 0.02, 0.37);
-        weaponGroup.add(grip);
-
-        const pommel = new THREE.Mesh(
-          new THREE.SphereGeometry(0.03, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8 })
-        );
-        pommel.position.set(0, 0.02, 0.46);
-        weaponGroup.add(pommel);
-      } else if (item.modelType === 'AXE') {
-        // Battleaxe
-        const haft = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.02, 0.02, 0.65),
-          new THREE.MeshStandardMaterial({ color: 0x5c2b0e, roughness: 0.7 })
-        );
-        haft.rotation.x = Math.PI / 2;
-        haft.position.set(0, 0.02, 0.1);
-        weaponGroup.add(haft);
-
-        const bladeL = new THREE.Mesh(
-          new THREE.BoxGeometry(0.14, 0.015, 0.18),
-          new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 })
-        );
-        bladeL.position.set(-0.08, 0.02, -0.16);
-        weaponGroup.add(bladeL);
-
-        const bladeR = new THREE.Mesh(
-          new THREE.BoxGeometry(0.14, 0.015, 0.18),
-          new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 })
-        );
-        bladeR.position.set(0.08, 0.02, -0.16);
-        weaponGroup.add(bladeR);
-      } else if (item.modelType === 'SHIELD') {
-        // Iron Heater Shield
-        const shieldBody = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.2, 0.2, 0.03, 16),
-          new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.4 })
-        );
-        shieldBody.rotation.x = Math.PI / 2;
-        shieldBody.position.set(0, 0.03, 0);
-        weaponGroup.add(shieldBody);
-
-        const rim = new THREE.Mesh(
-          new THREE.RingGeometry(0.17, 0.2, 16),
-          new THREE.MeshStandardMaterial({ color: 0xf3cf65, side: THREE.DoubleSide, metalness: 0.8 })
-        );
-        rim.rotation.x = -Math.PI / 2;
-        rim.position.set(0, 0.05, 0);
-        weaponGroup.add(rim);
-
-        const boss = new THREE.Mesh(
-          new THREE.SphereGeometry(0.05, 12, 12),
-          new THREE.MeshStandardMaterial({ color: 0xf3cf65, metalness: 0.9 })
-        );
-        boss.position.set(0, 0.05, 0);
-        weaponGroup.add(boss);
-      } else if (item.modelType === 'STAFF') {
-        // Oak Staff with Glowing Crystal
-        const staffHaft = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.022, 0.018, 0.75),
-          new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
-        );
-        staffHaft.rotation.x = Math.PI / 2;
-        staffHaft.position.set(0, 0.02, 0.1);
-        weaponGroup.add(staffHaft);
-
-        const crystal = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.05),
-          new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.8, roughness: 0.1 })
-        );
-        crystal.position.set(0, 0.04, -0.28);
-        weaponGroup.add(crystal);
-        // ⚡ crystalLight PointLight removed — the crystal's emissive:0x0284c7 /
-        //    emissiveIntensity:0.8 already provides the glow cue at zero GPU cost.
-      } else if (item.modelType === 'LUTE') {
-        // Bard's Acoustic Lute
-        const luteWoodMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
-        const luteFaceMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.3 });
-        const luteBody = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), luteWoodMat);
-        luteBody.scale.set(1.0, 1.25, 0.55);
-        luteBody.position.set(0, 0.04, -0.06);
-        weaponGroup.add(luteBody);
-
-        const soundboard = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), luteFaceMat);
-        soundboard.scale.set(1.0, 1.2, 1.0);
-        soundboard.position.set(0, 0.07, -0.06);
-        soundboard.rotation.x = -Math.PI / 2;
-        weaponGroup.add(soundboard);
-
-        const rosette = new THREE.Mesh(new THREE.CircleGeometry(0.025, 16), new THREE.MeshBasicMaterial({ color: 0x451a03 }));
-        rosette.position.set(0, 0.072, -0.06);
-        rosette.rotation.x = -Math.PI / 2;
-        weaponGroup.add(rosette);
-
-        const luteNeck = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.025, 0.26), luteWoodMat);
-        luteNeck.position.set(0, 0.05, 0.16);
-        weaponGroup.add(luteNeck);
-      } else if (item.modelType === 'HAMMER') {
-        // Warhammer
-        const hammerShaft = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.02, 0.02, 0.55),
-          new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.7 })
-        );
-        hammerShaft.rotation.x = Math.PI / 2;
-        hammerShaft.position.set(0, 0.02, 0.1);
-        weaponGroup.add(hammerShaft);
-
-        const hammerHead = new THREE.Mesh(
-          new THREE.BoxGeometry(0.18, 0.1, 0.12),
-          new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.85, roughness: 0.3 })
-        );
-        hammerHead.position.set(0, 0.03, -0.16);
-        weaponGroup.add(hammerHead);
-      } else {
-        // Dagger
-        const daggerBlade = new THREE.Mesh(
-          new THREE.BoxGeometry(0.04, 0.01, 0.3),
-          new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.9, roughness: 0.1 })
-        );
-        daggerBlade.position.set(0, 0.015, -0.05);
-        weaponGroup.add(daggerBlade);
-
-        const daggerGuard = new THREE.Mesh(
-          new THREE.BoxGeometry(0.12, 0.015, 0.02),
-          new THREE.MeshStandardMaterial({ color: 0xf3cf65, metalness: 0.8 })
-        );
-        daggerGuard.position.set(0, 0.015, 0.1);
-        weaponGroup.add(daggerGuard);
-
-        const daggerGrip = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.014, 0.014, 0.1),
-          new THREE.MeshStandardMaterial({ color: 0x1e293b })
-        );
-        daggerGrip.rotation.x = Math.PI / 2;
-        daggerGrip.position.set(0, 0.015, 0.16);
-        weaponGroup.add(daggerGrip);
-      }
+      weaponGroup.add(weaponModelMesh);
 
       // Golden Pulsing Base Ring
       const baseRing = new THREE.Mesh(
@@ -1095,7 +942,9 @@ export class GarthsShop {
       if (this.recruitBillboardGroup) {
         this.recruitBillboardGroup.visible = true;
       }
-      const nextRecruitName = pendingRecruitsArray[0];
+      // pendingRecruitsArray entries are { name, race } objects.
+      const nextRecruitEntry = pendingRecruitsArray[0];
+      const nextRecruitName = nextRecruitEntry?.name ?? nextRecruitEntry;
 
       const ctx = this.recruitCanvasCtx;
       if (ctx) {

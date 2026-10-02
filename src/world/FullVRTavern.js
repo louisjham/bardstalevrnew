@@ -4,6 +4,7 @@ import { TorchFlameShader } from '../shaders/TorchFlameShader.js';
 import { AnimatedSpriteManager } from '../textures/AnimatedSprite.js';
 import { TAVERN_TUTORIAL_PATRONS } from '../data/TavernTutorialData.js';
 import { COLLISION_LAYER } from '../ui/spatial-hud/SpatialCollisionLayers.js';
+import { createTavernTable, createTavernBench, createTavernMug, createWineBarrel } from './tavern/TavernFurnitureFactory.js';
 
 export class FullVRTavern {
   constructor(scene, onBardSelected, onDoorSelected) {
@@ -383,87 +384,19 @@ export class FullVRTavern {
 
     patronConfigs.forEach((cfg, idx) => {
       // 1. Heavy Slab Oak Table
-      const tableGroup = new THREE.Group();
+      const tableGroup = createTavernTable();
       tableGroup.position.set(cfg.pos[0], 0, cfg.pos[2]);
 
-      // Thick Tabletop
-      const tableTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.09, 1.1), oakWoodMat);
-      tableTop.position.y = 0.76;
-      tableGroup.add(tableTop);
-
-      // Iron Corner Brackets
-      for (let x = -1; x <= 1; x += 2) {
-        for (let z = -1; z <= 1; z += 2) {
-          const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.095, 0.12), ironMat);
-          bracket.position.set(x * 0.74, 0.76, z * 0.49);
-          tableGroup.add(bracket);
-        }
-      }
-
-      // 4 Heavy Oak Legs
-      for (let x = -1; x <= 1; x += 2) {
-        for (let z = -1; z <= 1; z += 2) {
-          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.72, 0.12), oakWoodMat);
-          leg.position.set(x * 0.65, 0.36, z * 0.4);
-          tableGroup.add(leg);
-        }
-      }
-
       // 2. Oak Bench
-      const bench = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 0.35), oakWoodMat);
-      bench.position.set(0, 0.21, 0.75);
-      tableGroup.add(bench);
+      const benchGroup = createTavernBench();
+      benchGroup.position.set(0, 0, 0.75);
+      tableGroup.add(benchGroup);
 
       this.tavernGroup.add(tableGroup);
 
       // 3. Realistic Ale Mug with Sloshing Amber Liquid & Foam
-      const mugGroup = new THREE.Group();
+      const mugGroup = createTavernMug();
       mugGroup.position.set(cfg.pos[0] + 0.25, 0.81, cfg.pos[2] + 0.15);
-
-      // Oak Wooden Tankard Body
-      const mugBody = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.075, 0.085, 0.18, 16),
-        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 })
-      );
-      mugGroup.add(mugBody);
-
-      // Iron Hoops
-      for (let h = -1; h <= 1; h += 2) {
-        const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.082, 0.008, 8, 16), ironMat);
-        hoop.rotation.x = Math.PI / 2;
-        hoop.position.y = h * 0.055;
-        mugGroup.add(hoop);
-      }
-
-      // Tankard Handle
-      const handle = new THREE.Mesh(
-        new THREE.TorusGeometry(0.055, 0.015, 8, 12, Math.PI),
-        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 })
-      );
-      handle.rotation.z = -Math.PI / 2;
-      handle.position.set(0.085, 0, 0);
-      mugGroup.add(handle);
-
-      // Golden Amber Ale Liquid Surface
-      const aleMat = new THREE.MeshStandardMaterial({
-        color: 0xd97706,
-        roughness: 0.2,
-        metalness: 0.1
-      });
-      const aleSurface = new THREE.Mesh(new THREE.CircleGeometry(0.068, 16), aleMat);
-      aleSurface.rotation.x = -Math.PI / 2;
-      aleSurface.position.y = 0.078;
-      aleSurface.name = 'aleSurface';
-      mugGroup.add(aleSurface);
-
-      // Frothy White Ale Foam
-      const foam = new THREE.Mesh(
-        new THREE.RingGeometry(0.04, 0.07, 16),
-        new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 })
-      );
-      foam.rotation.x = -Math.PI / 2;
-      foam.position.y = 0.081;
-      mugGroup.add(foam);
 
       // Invisible Hit Box for Easy Clicking & Reticle Aiming
       const mugHitBox = new THREE.Mesh(
