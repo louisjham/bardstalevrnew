@@ -1,29 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>The Bard's Tale I - Complete Sprite Sheet Index (1 to 63)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Bard's Tale I - Complete Sprite Sheet Index (01 to 63)</title>
   <style>
     body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
-    h1 { color: #f59e0b; text-align: center; }
+    h1 { color: #f59e0b; text-align: center; margin-bottom: 6px; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 20px; font-size: 13px; }
+    .toolbar { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+    .btn { background: #222; color: #eee; border: 1px solid #444; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; }
+    .btn.active { background: #f59e0b; color: #000; font-weight: bold; border-color: #f59e0b; }
+    .counter { color: #10b981; font-weight: bold; padding: 6px 10px; background: #1a2e22; border-radius: 4px; border: 1px solid #10b981; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
     .card { background: #222; border: 1px solid #444; border-radius: 8px; padding: 10px; text-align: center; }
-    .card h3 { margin: 4px 0 8px; color: #38bdf8; }
-    .card img { max-width: 100%; border: 1px solid #555; background: #000; image-rendering: pixelated; }
+    .card h3 { margin: 4px 0 8px; color: #38bdf8; font-size: 14px; }
+    .img-wrap { width: 100%; height: 70px; background: #000; border: 1px solid #555; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; position: relative; }
+    .img-wrap img { max-width: 100%; height: auto; image-rendering: pixelated; }
+
+    /* Animated Mode */
+    body.mode-anim .img-wrap { width: 128px; height: 128px; margin: 0 auto; position: relative; }
+    body.mode-anim .img-wrap img { position: absolute; left: 0; top: 0; width: 512px; height: 128px; max-width: none; animation: loopAnim 0.8s steps(4) infinite; }
+    @keyframes loopAnim {
+      from { transform: translateX(0); }
+      to { transform: translateX(-512px); }
+    }
+
+    /* Static Mode */
+    body.mode-static .img-wrap { width: 128px; height: 128px; margin: 0 auto; position: relative; }
+    body.mode-static .img-wrap img { position: absolute; left: 0; top: 0; width: 512px; height: 128px; max-width: none; transform: translateX(0); animation: none; }
   </style>
 </head>
-<body>
-  <h1>The Bard's Tale I - Sprite Sheets (01 to 63)</h1>
+<body class="mode-strip">
+  <h1>The Bard's Tale I — All 63 Sprite Sheets</h1>
+  <div class="subtitle">Complete Animated 4-Frame Horizontal Strips (1024 × 256 px)</div>
+  <div class="toolbar">
+    <button class="btn" id="btn-anim" onclick="setMode('anim')">▶ Animated 4-Frames</button>
+    <button class="btn" id="btn-static" onclick="setMode('static')">⏹ Static Frame</button>
+    <button class="btn active" id="btn-strip" onclick="setMode('strip')">📜 Full 4-Frame Strip</button>
+    <div id="counter" class="counter">Loading: 0 / 63</div>
+  </div>
   <div class="grid" id="gallery"></div>
   <script>
     const gallery = document.getElementById('gallery');
+    const loaded = new Set();
+
+    function setMode(mode) {
+      document.body.className = `mode-${mode}`;
+      document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById(`btn-${mode}`);
+      if (btn) btn.classList.add('active');
+    }
+
+    function getCandidates(pad) {
+      return [
+        `./assets/sprites/bt1_${pad}.png`,
+        `assets/sprites/bt1_${pad}.png`,
+        `/assets/sprites/bt1_${pad}.png`,
+        `../spritesheets/Bard 1 ${pad} Amiga_sheet.png`,
+        `../New folder/spritesheets/Bard 1 ${pad} Amiga_sheet.png`,
+        `spritesheets/Bard 1 ${pad} Amiga_sheet.png`,
+        `New folder/spritesheets/Bard 1 ${pad} Amiga_sheet.png`,
+        `../public/assets/sprites/bt1_${pad}.png`
+      ];
+    }
+
+    function onErr(img) {
+      const candidates = JSON.parse(img.dataset.candidates || '[]');
+      let idx = parseInt(img.dataset.idx || '0', 10) + 1;
+      if (idx < candidates.length) {
+        img.dataset.idx = idx;
+        img.src = candidates[idx];
+      } else {
+        img.style.display = 'none';
+        img.parentElement.innerHTML = '<span style="color:#ef4444; font-size:11px;">⚠️ Not found</span>';
+      }
+    }
+
+    function onLoaded(img) {
+      loaded.add(img.dataset.pad);
+      document.getElementById('counter').textContent = `✅ ${loaded.size} / 63 Sprites Loaded`;
+    }
+
     for (let i = 1; i <= 63; i++) {
       const pad = String(i).padStart(2, '0');
+      const candidates = getCandidates(pad);
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
         <h3>#${pad} (bt1_${pad}.png)</h3>
-        <img src="/assets/sprites/bt1_${pad}.png" alt="Sprite ${pad}" />
+        <div class="img-wrap">
+          <img 
+            data-pad="${pad}"
+            data-candidates='${JSON.stringify(candidates)}'
+            data-idx="0"
+            src="${candidates[0]}" 
+            alt="Sprite ${pad}"
+            onerror="onErr(this)"
+            onload="onLoaded(this)"
+          />
+        </div>
       `;
       gallery.appendChild(card);
     }

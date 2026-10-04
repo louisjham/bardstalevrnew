@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Bard's Tale VR - Master Game Sprite Catalog (Root Viewer)</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --gold: #f59e0b;
+      --cyan: #38bdf8;
+      --green: #10b981;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+    }
+    header {
+      max-width: 1400px;
+      margin: 0 auto 24px;
+      text-align: center;
+    }
+    h1 {
+      color: var(--gold);
+      margin: 0 0 6px;
+      font-size: 28px;
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      margin: 0 0 20px;
+      font-size: 14px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      background: rgba(30, 41, 59, 0.7);
+      padding: 12px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      max-width: 1100px;
+      margin: 0 auto 28px;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 220px;
+      max-width: 380px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-box:focus {
+      border-color: var(--gold);
+    }
+    .btn-group {
+      display: flex;
+      gap: 6px;
+    }
+    .btn {
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #334155;
+      color: #fff;
+    }
+    .btn.active {
+      background: var(--gold);
+      color: #000;
+      font-weight: 600;
+      border-color: var(--gold);
+    }
+    .counter-badge {
+      font-family: monospace;
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--green);
+      color: var(--green);
+    }
+    .category-section {
+      max-width: 1400px;
+      margin: 0 auto 36px;
+      background: rgba(30, 41, 59, 0.4);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .category-title {
+      color: var(--cyan);
+      font-size: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      margin: 0 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--gold);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .card h4 {
+      margin: 8px 0 3px;
+      color: var(--gold);
+      font-size: 15px;
+    }
+    .card .id-badge {
+      display: inline-block;
+      background: #0f172a;
+      color: var(--cyan);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: monospace;
+      margin-bottom: 6px;
+    }
+    .card .role {
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .card .desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      text-align: left;
+      background: rgba(15, 23, 42, 0.4);
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    /* SPRITE PREVIEW MODES */
+    .preview-box {
+      width: 128px;
+      height: 128px;
+      margin: 0 auto 8px;
+      overflow: hidden;
+      position: relative;
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .preview-box img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* Animated Mode */
+    body.mode-animated .preview-box img {
+      width: 512px;
+      height: 128px;
+      animation: spriteLoop 0.8s steps(4) infinite;
+    }
+    @keyframes spriteLoop {
+      from { transform: translateX(0); }
+      to { transform: translateX(-512px); }
+    }
+
+    /* Static Mode */
+    body.mode-static .preview-box img {
+      width: 512px;
+      height: 128px;
+      transform: translateX(0);
+      animation: none;
+    }
+
+    /* Full Strip Mode */
+    body.mode-strip .preview-box {
+      width: 100%;
+      height: 64px;
+    }
+    body.mode-strip .preview-box img {
+      position: static;
+      width: 100%;
+      height: auto;
+      transform: none;
+      animation: none;
+    }
+
+    .img-error {
+      color: var(--red);
+      font-size: 11px;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body class="mode-animated">
+  <header>
+    <h1>The Bard's Tale VR — Master Game Sprite Catalog</h1>
+    <p class="subtitle">Complete Animated 4-Frame Spritesheets from 1985 Interplay Master Assets (01 to 63)</p>
+    
+    <div class="toolbar">
+      <input type="text" id="search" class="search-box" placeholder="🔍 Search sprite name, #ID, or keyword..." />
+      <div class="btn-group">
+        <button class="btn active" id="btn-animated" onclick="setMode('animated')">▶ Animated (4-Frame)</button>
+        <button class="btn" id="btn-static" onclick="setMode('static')">⏹ Static Frame</button>
+        <button class="btn" id="btn-strip" onclick="setMode('strip')">📜 Full Strip</button>
+      </div>
+      <div id="counter" class="counter-badge">Loading Sprites...</div>
+    </div>
+  </header>
+
+  <div id="catalog"></div>
+
+  <script>
+    const catalogData = [
+      {
+        title: "🛡️ Hero Classes & Playable Archetypes",
+        items: [
+          { num: "01", name: "Warrior / Fighter", role: "Melee Combatant & Weapon Master", desc: "Silver plate armor, shaved head, mustache, round steel shield" },
+          { num: "02", name: "Paladin / Knight", role: "Holy Warrior & Guardian", desc: "Heavy plate with holy cross surcoat, dark hair/beard, raising broadsword" },
+          { num: "03", name: "Thief / Rogue / Hobbit", role: "Trap Disarmer & Backstabber", desc: "Hooded traveler seated cross-legged holding golden chalice & ruby" },
+          { num: "04", name: "Bard / Minstrel", role: "Magical Instrument Performer", desc: "Green feathered cap, green tunic, playing lute with frothing beer stein" },
+          { num: "05", name: "Hunter / Ranger", role: "Critical Hit Specialist", desc: "Green woodsman tunic and cap, quiver, recurve bow & battleaxe on back" },
+          { num: "06", name: "Monk / Priest", role: "Bare-Handed Martial Artist / Cleric", desc: "Elderly monk with tonsure and white beard in blue robe holding wooden staff" },
+          { num: "07", name: "Conjurer", role: "Healer & Physical Spellcaster", desc: "White-bearded caster in light blue cowl raising arm with spell spark" },
+          { num: "08", name: "Magician / Wizard", role: "Offensive Energy Spellcaster", desc: "Elder wizard with white beard in black robe raising skull staff horizontally" }
+        ]
+      },
+      {
+        title: "🍺 Town Sanctuaries, NPCs & Storefronts",
+        items: [
+          { num: "56", name: "Garth the Armorer", role: "Garth's Equipment Shoppe Counter", desc: "Garth in green sleeveless vest standing behind weapons racks" },
+          { num: "46", name: "Garth's Armory Exterior", role: "Shoppe Storefront", desc: "Timber storefront with crossed broadswords over heater shield sign" },
+          { num: "60", name: "Roscoe the Mage", role: "Roscoe's Energy Emporium Counter", desc: "White-bearded wizard in emerald green robe petting a black cat at counter" },
+          { num: "63", name: "The Dragon's Grog Barkeep", role: "Tavern Barkeep", desc: "Barkeep behind counter under stuffed green dragon trophy ('2 DRINK MINIMUM')" },
+          { num: "44", name: "The Scarlet Bard Exterior", role: "Tavern Facade", desc: "Half-timbered tavern facade with hanging sign displaying wine glass" },
+          { num: "48", name: "Tavern Hearth & Bard", role: "Tavern Interior Performance", desc: "Blazing brick fireplace, gathered patrons, and bard playing lute" },
+          { num: "53", name: "Adventurers Guild Exterior", role: "Guild Facade", desc: "Stone building with arched wooden door and 'AG' guild crest sign" },
+          { num: "57", name: "Review Board Judicial Tribunal", role: "Review Board Chamber", desc: "Row of hooded magistrates in magenta robes seated at tribunal bench" },
+          { num: "16", name: "Review Board Scribe / Elder", role: "Advancement Scholar", desc: "Elderly scholar with spectacles holding parchment scroll & quill" },
+          { num: "54", name: "Review Board Archmage", role: "Master Trainer", desc: "Elderly wizard with flowing white beard & hair in bright purple robe" },
+          { num: "59", name: "Chanting Priests of Light", role: "Temple of Divine Light", desc: "Row of brown-hooded monks chanting with folded hands at sanctuary wall" },
+          { num: "10", name: "Temple High Priest", role: "Temple Healer", desc: "Elderly priest in red & blue ceremonial vestments and golden mitre" },
+          { num: "43", name: "Temple Colonnade Hall", role: "Sanctuary Interior", desc: "Grand vaulted hallway flanked by neoclassical white stone pillars" },
+          { num: "26", name: "Old Man / Hermit", role: "Town Gossip / Hermit", desc: "Hunched elderly man in teal tunic with white hair leaning on walking cane" },
+          { num: "62", name: "Empty Building Interior", role: "Abandoned House", desc: "Cottage/tavern interior with rafter trusses, trestle table, bench & window" }
+        ]
+      },
+      {
+        title: "🗿 Monuments, Gates, Traps & Dungeons",
+        items: [
+          { num: "37", name: "Skara Brae City Gates", role: "City Border", desc: "Ornate decorative black wrought iron gate doors with stone pillars" },
+          { num: "39", name: "City Portcullis Gate", role: "Fortress Drawbridge Gate", desc: "Heavy arched timber gate with winch cable lift mechanism" },
+          { num: "38", name: "Granite Guardian Statue", role: "Gran Plaz Monument", desc: "Carved stone warrior monument on pedestal clutching a long spear/staff" },
+          { num: "47", name: "Golden Idol of Tarjan", role: "Temple of Tarjan / Mad God", desc: "Colossal golden-bronze horned idol statue with single ruby eye & empty socket" },
+          { num: "36", name: "Baron Harkyn's Castle", role: "Dungeon Fortress Exterior", desc: "Fortress exterior with white stone towers, blue conical spires & portcullis" },
+          { num: "61", name: "Castle Imperial Throne Room", role: "Harkyn / Mangar Throne", desc: "Long vaulted stone hall lined with golden sconces leading to gold throne" },
+          { num: "13", name: "Catacombs / Pit Trap", role: "Dungeon Hazard", desc: "Green stone masonry hall with subterranean bubbling trap / catacomb pit" },
+          { num: "58", name: "Swirling Sewer / Spinner Vortex", role: "Dungeon Spinner Tile", desc: "Concentric green stone masonry tunnel vortex spiraling inward" },
+          { num: "55", name: "Trapped Dungeon Chest", role: "Treasure Encounter", desc: "Iron-banded wooden chest with arched lid, carry handles, and padlock" },
+          { num: "11", name: "Treasure Hoard", role: "Victory Spoils", desc: "Gleaming mound of gold coins and jewels with crown and upright sword" },
+          { num: "52", name: "Interplay Productions Logo", role: "Master Title Screen", desc: "Official 1985 Interplay Productions banner with 3D logo block" }
+        ]
+      },
+      {
+        title: "⚔️ Classic Monsters, Beasts & Bosses",
+        items: [
+          { num: "23", name: "Skeleton / Bone Crusher", role: "Undead Swordsman", desc: "Human skeleton with glowing red eye sockets wielding a short sword" },
+          { num: "41", name: "Decayed Zombie / Crypt Ghoul", role: "Undead Rotting Flesh", desc: "Rotting green corpse in ragged blue burial shroud clawing forward" },
+          { num: "51", name: "Emaciated Ghoul / Wight", role: "Undead Corpse", desc: "Gaunt, skeletal undead walker with exposed ribs in tattered loincloth" },
+          { num: "19", name: "Cannibal Ghoul / Flesh Eater", role: "Undead Feaster", desc: "Decomposing green zombie gnawing on a bloody human arm and ribs" },
+          { num: "20", name: "Shadow / Wraith / Spectre", role: "Life Draining Phantom", desc: "Dark silhouette with burning glowing red eyes and dissipating dark mist" },
+          { num: "40", name: "Vampire / Vampire Lord", role: "Master Undead", desc: "Pale vampire with slicked black hair, draped cape, and bloody fangs" },
+          { num: "25", name: "Wolf / Werewolf", role: "Ferocious Beast", desc: "Furry snarling beast with pointed ears and bared predator fangs" },
+          { num: "27", name: "Giant Spider / Black Widow", role: "Poisonous Arachnid", desc: "Colossal green venomous spider poised over web covered in human bones" },
+          { num: "28", name: "Kobold / Reptile Orc", role: "Early Dungeon Raider", desc: "Green reptilian snout with tusks, clawed hands, and orange leather vest" },
+          { num: "49", name: "Armored Orc / Hobgoblin", role: "Brute Melee Enemy", desc: "Green goblinoid warrior in polished iron breastplate holding tower shield" },
+          { num: "15", name: "Ogre / Troll", role: "Heavy Crushing Giant", desc: "Green-skinned brute with white hair, wild red eyes, fur ruff, sack pants" },
+          { num: "50", name: "Barbarian Berserker / Mongo", role: "Savage Warrior", desc: "Giant bare-chested warrior in fur cloak and golden helm with war shield" },
+          { num: "24", name: "Assassin / Nightblade", role: "Lethal Shadow Killer", desc: "Muscular rogue in dark cowl with bow on back drawing a steel short sword" },
+          { num: "17", name: "Guild Guard / Mercenary", role: "Armed Guard", desc: "One-eyed warrior with black eye patch and green vest wielding a combat staff" },
+          { num: "32", name: "Samurai / Kensai", role: "Elite Blademaster", desc: "Samurai in blue lacquered armor with kabuto helmet drawing katana" },
+          { num: "31", name: "Grandmaster Monk", role: "Martial Artist", desc: "Bald scarred monk in vibrant magenta robes in martial arts defense stance" },
+          { num: "14", name: "Winged Dragon / Wyvern", role: "Ancient Wyrm Boss", desc: "Green quadruped winged dragon crouching with venomous jaws & red eyes" },
+          { num: "21", name: "Sea Serpent / Lurker", role: "Subterranean Beast", desc: "Massive green scaled serpent with open jaws, fangs, and spinal frill" },
+          { num: "33", name: "Hydra / Two-Headed Serpent", role: "Multi-Headed Fiend", desc: "Two-headed serpentine beast with yellow bellies and flickering tongues" },
+          { num: "29", name: "Eye Spy / Beholder", role: "Ocular Aberration", desc: "Floating pink spherical eyeball aberration with optic nerve tentacles" },
+          { num: "42", name: "Gargoyle / Demon", role: "Winged Abyssal Fiend", desc: "Muscular winged horned stone demon with glowing yellow eyes" },
+          { num: "34", name: "Earth Elemental / Sand Golem", role: "Living Earth Construct", desc: "Swirling humanoid avatar composed of living sand, dust, and rock particles" },
+          { num: "22", name: "Ice Golem / Crystal Golem", role: "Glacial Construct", desc: "Crystalline golem composed of jagged ice and glacial snow chunks" },
+          { num: "18", name: "Mage Flame Evoker", role: "Fire Spellcaster", desc: "Sage in magenta robe with wooden staff conjuring an orb of Mage Flame" },
+          { num: "09", name: "Archmage / Enchanter", role: "Elder Spellcaster", desc: "Wizard with blonde beard and pointed green wizard hat casting spells" },
+          { num: "45", name: "Kylearan the Archmage", role: "Legendary Friendly Wizard", desc: "Sorcerer in silver-trimmed robe with turquoise third-eye forehead gem" },
+          { num: "30", name: "Mangar the Dark", role: "Final Boss Arch-Mage", desc: "Hooded sorcerer in royal blue robes raising hands skyward chanting" },
+          { num: "12", name: "Celestial Archon / Angel", role: "Holy Summon", desc: "Celestial warrior with white feathered wings, golden halo & broadsword" }
+        ]
+      }
+    ];
+
+    const loadedSet = new Set();
+    const totalItems = catalogData.reduce((acc, cat) => acc + cat.items.length, 0);
+
+    function getCandidatePaths(num) {
+      return [
+        `public/assets/sprites/bt1_${num}.png`,
+        `./public/assets/sprites/bt1_${num}.png`,
+        `spritesheets/Bard 1 ${num} Amiga_sheet.png`,
+        `./spritesheets/Bard 1 ${num} Amiga_sheet.png`,
+        `New folder/spritesheets/Bard 1 ${num} Amiga_sheet.png`,
+        `./New folder/spritesheets/Bard 1 ${num} Amiga_sheet.png`,
+        `assets/sprites/bt1_${num}.png`,
+        `/assets/sprites/bt1_${num}.png`
+      ];
+    }
+
+    function handleImageError(img) {
+      let idx = parseInt(img.dataset.tryIndex || '0', 10) + 1;
+      const candidates = JSON.parse(img.dataset.candidates || '[]');
+      if (idx < candidates.length) {
+        img.dataset.tryIndex = idx;
+        img.src = candidates[idx];
+      } else {
+        img.style.display = 'none';
+        const err = document.createElement('div');
+        err.className = 'img-error';
+        err.innerHTML = '⚠️ Image not found';
+        img.parentElement.appendChild(err);
+      }
+    }
+
+    function handleImageLoad(img) {
+      loadedSet.add(img.dataset.id);
+      updateCounter();
+    }
+
+    function updateCounter() {
+      const counterEl = document.getElementById('counter');
+      const count = loadedSet.size;
+      counterEl.textContent = `✅ ${count} / ${totalItems} Sprites Loaded`;
+      if (count === totalItems) {
+        counterEl.style.background = 'rgba(16, 185, 129, 0.25)';
+        counterEl.style.borderColor = 'var(--green)';
+      }
+    }
+
+    function setMode(mode) {
+      document.body.className = `mode-${mode}`;
+      document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-${mode}`);
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    const catalogEl = document.getElementById('catalog');
+
+    catalogData.forEach(cat => {
+      const section = document.createElement('div');
+      section.className = 'category-section';
+      section.innerHTML = `
+        <h2 class="category-title">
+          <span>${cat.title}</span>
+          <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">${cat.items.length} Sheets</span>
+        </h2>
+        <div class="grid"></div>
+      `;
+      const grid = section.querySelector('.grid');
+
+      cat.items.forEach(item => {
+        const candidates = getCandidatePaths(item.num);
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.searchText = `${item.num} ${item.name} ${item.role} ${item.desc}`.toLowerCase();
+        card.innerHTML = `
+          <div class="preview-box">
+            <img 
+              data-id="${item.num}"
+              data-candidates='${JSON.stringify(candidates)}'
+              data-try-index="0"
+              src="${candidates[0]}" 
+              alt="${item.name}"
+              onerror="handleImageError(this)"
+              onload="handleImageLoad(this)"
+            />
+          </div>
+          <h4>${item.name}</h4>
+          <span class="id-badge">#${item.num} (bt1_${item.num}.png)</span>
+          <div class="role">${item.role}</div>
+          <div class="desc">${item.desc}</div>
+        `;
+        grid.appendChild(card);
+      });
+
+      catalogEl.appendChild(section);
+    });
+
+    const searchInput = document.getElementById('search');
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('.card').forEach(card => {
+        const match = !query || card.dataset.searchText.includes(query);
+        card.style.display = match ? '' : 'none';
+      });
+
+      document.querySelectorAll('.category-section').forEach(sec => {
+        const visibleCards = sec.querySelectorAll('.card:not([style*="display: none"])');
+        sec.style.display = visibleCards.length > 0 ? '' : 'none';
+      });
+    });
+  </script>
+</body>
+</html>

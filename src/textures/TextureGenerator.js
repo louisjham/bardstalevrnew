@@ -191,6 +191,335 @@ export class TextureGenerator {
     return new THREE.CanvasTexture(canvas);
   }
 
+
+  /**
+   * Temple of the Divine Light — Interior Stone Sanctuary Backdrop
+   * Illuminated altar, stained-glass rose window, pillar niches, stone arch.
+   */
+  static createAuthenticTempleBackdrop() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 400;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Deep stone wall base
+    ctx.fillStyle = '#1a1209';
+    ctx.fillRect(0, 0, 640, 400);
+
+    // Dressed-stone brick pattern
+    ctx.strokeStyle = '#0c0a06';
+    ctx.lineWidth = 2;
+    for (let row = 0; row < 8; row++) {
+      const yBase = row * 50;
+      const offset = (row % 2) * 40;
+      for (let col = -1; col < 10; col++) {
+        const x = col * 80 + offset;
+        ctx.fillStyle = row % 3 === 0 ? '#2a200e' : '#231b0a';
+        ctx.fillRect(x + 1, yBase + 1, 78, 48);
+        ctx.strokeRect(x + 1, yBase + 1, 78, 48);
+      }
+    }
+
+    // 2. Heavy timber frame beams (vertical)
+    ctx.fillStyle = '#3b1f08';
+    ctx.fillRect(0, 0, 28, 400);
+    ctx.fillRect(612, 0, 28, 400);
+    ctx.fillStyle = '#4a2a0a';
+    ctx.fillRect(0, 0, 640, 22);
+
+    // 3. Central arch above altar
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(320, 220, 175, Math.PI, 0);
+    ctx.stroke();
+    // Inner arch glow
+    ctx.strokeStyle = 'rgba(255,220,100,0.25)';
+    ctx.lineWidth = 18;
+    ctx.beginPath();
+    ctx.arc(320, 220, 175, Math.PI, 0);
+    ctx.stroke();
+
+    // 4. Stained-glass rose window (upper centre)
+    const cx = 320, cy = 90, r = 55;
+    // Outer ring
+    ctx.fillStyle = '#1e0a30';
+    ctx.beginPath(); ctx.arc(cx, cy, r + 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 6, 0, Math.PI * 2); ctx.stroke();
+    // Petals
+    const petalColors = ['#e11d48','#7c3aed','#0891b2','#059669','#d97706','#db2777'];
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const px = cx + Math.cos(angle) * r * 0.55;
+      const py = cy + Math.sin(angle) * r * 0.55;
+      ctx.fillStyle = petalColors[i];
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(px, py, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Centre jewel
+    ctx.fillStyle = '#fde68a';
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.22, 0, Math.PI * 2); ctx.fill();
+    // Radiating lead lines
+    ctx.strokeStyle = '#78350f'; ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      ctx.stroke();
+    }
+    // Outer glow halo
+    const halo = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 1.8);
+    halo.addColorStop(0, 'rgba(253,230,138,0.18)');
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.8, 0, Math.PI * 2); ctx.fill();
+
+    // 5. Stone altar table
+    ctx.fillStyle = '#3d2b0f';
+    ctx.fillRect(220, 295, 200, 20);   // altar top
+    ctx.fillStyle = '#2e1f08';
+    ctx.fillRect(240, 315, 160, 85);   // altar body
+    ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 3;
+    ctx.strokeRect(220, 295, 200, 20);
+    ctx.strokeRect(240, 315, 160, 85);
+
+    // Gold candelabra on altar
+    for (const cx2 of [255, 385]) {
+      // Base
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(cx2 - 8, 275, 16, 20);
+      // Candle
+      ctx.fillStyle = '#fef9c3';
+      ctx.fillRect(cx2 - 3, 255, 6, 24);
+      // Flame
+      const flameGrd = ctx.createRadialGradient(cx2, 254, 1, cx2, 254, 10);
+      flameGrd.addColorStop(0, '#ffffff');
+      flameGrd.addColorStop(0.3, '#fde047');
+      flameGrd.addColorStop(1, 'rgba(251,146,60,0)');
+      ctx.fillStyle = flameGrd;
+      ctx.beginPath(); ctx.ellipse(cx2, 252, 7, 12, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 6. Stone pillar niches (left & right)
+    for (const px2 of [60, 570]) {
+      ctx.fillStyle = '#1c150a';
+      ctx.beginPath();
+      ctx.arc(px2, 190, 38, Math.PI, 0);
+      ctx.lineTo(px2 + 38, 310);
+      ctx.lineTo(px2 - 38, 310);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.stroke();
+      // Niche glow
+      const nGrd = ctx.createRadialGradient(px2, 200, 5, px2, 200, 50);
+      nGrd.addColorStop(0, 'rgba(253,230,138,0.15)');
+      nGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = nGrd;
+      ctx.beginPath(); ctx.arc(px2, 200, 50, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 7. Wall torches flanking the arch
+    for (const tx of [140, 500]) {
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(tx - 4, 155, 8, 28);
+      const tFlame = ctx.createRadialGradient(tx, 152, 2, tx, 148, 16);
+      tFlame.addColorStop(0, '#fef08a');
+      tFlame.addColorStop(0.5, '#f97316');
+      tFlame.addColorStop(1, 'rgba(234,88,12,0)');
+      ctx.fillStyle = tFlame;
+      ctx.beginPath(); ctx.ellipse(tx, 150, 9, 16, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 8. "TEMPLE OF THE DIVINE LIGHT" sign plaque
+    ctx.fillStyle = '#1c1108';
+    ctx.fillRect(150, 340, 340, 42);
+    ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 3;
+    ctx.strokeRect(150, 340, 340, 42);
+    ctx.fillStyle = '#fde68a';
+    ctx.font = 'bold 16px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏛️ TEMPLE OF THE DIVINE LIGHT 🏛️', 320, 368);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }
+
+  /**
+   * Roscoe's Energy Emporium — Interior Arcane Laboratory Backdrop
+   * Crystal orbs, arcane glyphs, potion shelves, and mystical energy arcs.
+   */
+  static createAuthenticRoscoeBackdrop() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 400;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Dark emerald stone wall base
+    ctx.fillStyle = '#031a12';
+    ctx.fillRect(0, 0, 640, 400);
+
+    // Stone brick rows — dark green tinted
+    ctx.strokeStyle = '#021409';
+    ctx.lineWidth = 2;
+    for (let row = 0; row < 8; row++) {
+      const yBase = row * 50;
+      const offset = (row % 2) * 40;
+      for (let col = -1; col < 10; col++) {
+        const x = col * 80 + offset;
+        ctx.fillStyle = row % 3 === 0 ? '#072917' : '#052012';
+        ctx.fillRect(x + 1, yBase + 1, 78, 48);
+        ctx.strokeRect(x + 1, yBase + 1, 78, 48);
+      }
+    }
+
+    // 2. Heavy timber frame
+    ctx.fillStyle = '#1a3a0a';
+    ctx.fillRect(0, 0, 28, 400);
+    ctx.fillRect(612, 0, 28, 400);
+    ctx.fillStyle = '#1f4a0c';
+    ctx.fillRect(0, 0, 640, 22);
+
+    // 3. Large crystal energy orb (centre, hovering above counter area)
+    const ox = 320, oy = 130, or = 58;
+    // Outer glow
+    const orbGlow = ctx.createRadialGradient(ox, oy, or * 0.3, ox, oy, or * 2.2);
+    orbGlow.addColorStop(0, 'rgba(56,189,248,0.45)');
+    orbGlow.addColorStop(0.5, 'rgba(99,102,241,0.2)');
+    orbGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = orbGlow;
+    ctx.beginPath(); ctx.arc(ox, oy, or * 2.2, 0, Math.PI * 2); ctx.fill();
+    // Orb body
+    const orbBody = ctx.createRadialGradient(ox - or * 0.3, oy - or * 0.3, or * 0.05, ox, oy, or);
+    orbBody.addColorStop(0, '#e0f2fe');
+    orbBody.addColorStop(0.3, '#38bdf8');
+    orbBody.addColorStop(0.7, '#6366f1');
+    orbBody.addColorStop(1, '#1e1b4b');
+    ctx.fillStyle = orbBody;
+    ctx.beginPath(); ctx.arc(ox, oy, or, 0, Math.PI * 2); ctx.fill();
+    // Specular highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.ellipse(ox - or * 0.3, oy - or * 0.3, or * 0.25, or * 0.15, -0.5, 0, Math.PI * 2); ctx.fill();
+    // Crackling arc lines radiating from orb
+    ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
+    const arcAngles = [0.2, 0.9, 1.7, 2.5, 3.3, 4.1, 5.0, 5.7];
+    arcAngles.forEach(a => {
+      ctx.beginPath();
+      ctx.moveTo(ox + Math.cos(a) * or, oy + Math.sin(a) * or);
+      ctx.lineTo(ox + Math.cos(a) * (or + 28) + (Math.random() - 0.5) * 12,
+                 oy + Math.sin(a) * (or + 28) + (Math.random() - 0.5) * 12);
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    // 4. Potion / crystal shelves (left wall section)
+    ctx.fillStyle = '#0f2d18';
+    ctx.fillRect(40, 80, 150, 12);   // shelf 1
+    ctx.fillRect(40, 145, 150, 12);  // shelf 2
+    ctx.fillRect(40, 210, 150, 12);  // shelf 3
+    ctx.strokeStyle = '#34d399'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(40, 80, 150, 12);
+    ctx.strokeRect(40, 145, 150, 12);
+    ctx.strokeRect(40, 210, 150, 12);
+    // Potions on shelves
+    const potionColors = ['#4ade80','#f472b6','#fb923c','#a78bfa','#38bdf8','#fde047'];
+    [92, 157, 222].forEach((sy, si) => {
+      for (let pi = 0; pi < 5; pi++) {
+        const px = 52 + pi * 28;
+        const col = potionColors[(si * 5 + pi) % potionColors.length];
+        // Flask body
+        ctx.fillStyle = col; ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.ellipse(px, sy - 16, 9, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Flask neck
+        ctx.fillStyle = col; ctx.globalAlpha = 0.9;
+        ctx.fillRect(px - 3, sy - 35, 6, 12);
+        // Stopper
+        ctx.fillStyle = '#78350f'; ctx.globalAlpha = 1;
+        ctx.fillRect(px - 4, sy - 39, 8, 6);
+        // Glow
+        const pGlow = ctx.createRadialGradient(px, sy - 18, 2, px, sy - 18, 16);
+        pGlow.addColorStop(0, col + '88');
+        pGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = pGlow;
+        ctx.beginPath(); ctx.ellipse(px, sy - 18, 16, 20, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // 5. Arcane rune circle on wall (right side)
+    const rx = 510, ry = 175, rr = 70;
+    ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(rx, ry, rr * 0.62, 0, Math.PI * 2); ctx.stroke();
+    // Pentagon inside
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      const bx = rx + Math.cos(a) * rr * 0.62;
+      const by = ry + Math.sin(a) * rr * 0.62;
+      i === 0 ? ctx.moveTo(bx, by) : ctx.lineTo(bx, by);
+    }
+    ctx.closePath(); ctx.stroke();
+    // Rune glyphs
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = 'bold 13px serif';
+    ctx.textAlign = 'center';
+    const runes = ['ᚱ','ᛖ','ᚲ','ᛚ','ᚨ'];
+    runes.forEach((r, i) => {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      ctx.fillText(r, rx + Math.cos(a) * rr * 0.82, ry + Math.sin(a) * rr * 0.82 + 5);
+    });
+    ctx.globalAlpha = 1;
+    // Rune circle glow
+    const rGlow = ctx.createRadialGradient(rx, ry, rr * 0.3, rx, ry, rr * 1.4);
+    rGlow.addColorStop(0, 'rgba(52,211,153,0.12)');
+    rGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rGlow;
+    ctx.beginPath(); ctx.arc(rx, ry, rr * 1.4, 0, Math.PI * 2); ctx.fill();
+
+    // 6. Wooden counter shelf front
+    ctx.fillStyle = '#0f2d18';
+    ctx.fillRect(150, 300, 340, 100);
+    ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2;
+    ctx.strokeRect(150, 300, 340, 100);
+    // Counter surface
+    ctx.fillStyle = '#1a3d24';
+    ctx.fillRect(150, 300, 340, 14);
+
+    // 7. Wall torches — cyan-tinted arcane flames
+    for (const tx of [85, 555]) {
+      ctx.fillStyle = '#065f46';
+      ctx.fillRect(tx - 4, 260, 8, 30);
+      const tFlame = ctx.createRadialGradient(tx, 258, 2, tx, 252, 18);
+      tFlame.addColorStop(0, '#e0f2fe');
+      tFlame.addColorStop(0.4, '#38bdf8');
+      tFlame.addColorStop(1, 'rgba(6,182,212,0)');
+      ctx.fillStyle = tFlame;
+      ctx.beginPath(); ctx.ellipse(tx, 252, 10, 18, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 8. "ROSCOE'S ENERGY EMPORIUM" sign plaque
+    ctx.fillStyle = '#031a12';
+    ctx.fillRect(130, 348, 380, 42);
+    ctx.strokeStyle = '#34d399'; ctx.lineWidth = 3;
+    ctx.strokeRect(130, 348, 380, 42);
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = 'bold 16px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText("⚡ ROSCOE'S ENERGY EMPORIUM ⚡", 320, 376);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }
+
+
   /**
    * Authentic C64 Garth's Equipment Shoppe Interior Feature Backdrop
    * Depicts the iconic 1985 shop scene with Garth behind his counter,

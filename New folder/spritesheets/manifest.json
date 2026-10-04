@@ -1,0 +1,443 @@
+[
+  {
+    "id": 1,
+    "pad": "01",
+    "name": "Warrior",
+    "role": "Hero / Monster",
+    "desc": "Silver plate armor, shaved head, mustache, round steel shield"
+  },
+  {
+    "id": 2,
+    "pad": "02",
+    "name": "Paladin",
+    "role": "Hero / Knight",
+    "desc": "Heavy plate with holy cross surcoat, dark hair/beard, raising broadsword"
+  },
+  {
+    "id": 3,
+    "pad": "03",
+    "name": "Thief",
+    "role": "Hero / Rogue",
+    "desc": "Hooded traveler seated cross-legged holding golden chalice & ruby"
+  },
+  {
+    "id": 4,
+    "pad": "04",
+    "name": "Bard",
+    "role": "Hero / Minstrel",
+    "desc": "Green feathered cap, green tunic, playing lute with frothing beer stein"
+  },
+  {
+    "id": 5,
+    "pad": "05",
+    "name": "Hunter",
+    "role": "Hero / Ranger",
+    "desc": "Green woodsman tunic and cap, quiver, recurve bow & battleaxe on back"
+  },
+  {
+    "id": 6,
+    "pad": "06",
+    "name": "Monk",
+    "role": "Hero / Priest",
+    "desc": "Elderly monk with tonsure and white beard in blue robe holding wooden staff"
+  },
+  {
+    "id": 7,
+    "pad": "07",
+    "name": "Conjurer",
+    "role": "Hero / Spellcaster",
+    "desc": "White-bearded caster in light blue cowl raising arm with spell spark"
+  },
+  {
+    "id": 8,
+    "pad": "08",
+    "name": "Magician",
+    "role": "Hero / Spellcaster",
+    "desc": "Elder wizard with white beard in black robe raising skull staff horizontally"
+  },
+  {
+    "id": 9,
+    "pad": "09",
+    "name": "Archmage",
+    "role": "Monster / Spellcaster",
+    "desc": "Wizard with blonde beard and pointed green wizard hat casting spells"
+  },
+  {
+    "id": 10,
+    "pad": "10",
+    "name": "High Priest",
+    "role": "Monster / Cleric",
+    "desc": "Elderly priest in red & blue ceremonial vestments and golden mitre"
+  },
+  {
+    "id": 11,
+    "pad": "11",
+    "name": "Treasure Hoard",
+    "role": "Environs / Loot",
+    "desc": "Gleaming mound of gold coins and jewels with crown and upright sword"
+  },
+  {
+    "id": 12,
+    "pad": "12",
+    "name": "Angel",
+    "role": "Monster / Summon",
+    "desc": "Celestial warrior with white feathered wings, golden halo & broadsword"
+  },
+  {
+    "id": 13,
+    "pad": "13",
+    "name": "Catacombs Chamber",
+    "role": "Environs / Dungeon",
+    "desc": "Green stone masonry hall with subterranean bubbling trap / catacomb pit"
+  },
+  {
+    "id": 14,
+    "pad": "14",
+    "name": "Winged Dragon",
+    "role": "Monster / Boss",
+    "desc": "Green quadruped winged dragon crouching with venomous jaws & red eyes"
+  },
+  {
+    "id": 15,
+    "pad": "15",
+    "name": "Ogre / Troll",
+    "role": "Monster / Brute",
+    "desc": "Green-skinned brute with white hair, wild red eyes, fur ruff, sack pants"
+  },
+  {
+    "id": 16,
+    "pad": "16",
+    "name": "Review Board Elder",
+    "role": "NPC / Scholar",
+    "desc": "Elderly scholar with spectacles holding parchment scroll & quill"
+  },
+  {
+    "id": 17,
+    "pad": "17",
+    "name": "Guild Guard",
+    "role": "Monster / Guard",
+    "desc": "One-eyed warrior with black eye patch and green vest wielding a combat staff"
+  },
+  {
+    "id": 18,
+    "pad": "18",
+    "name": "Evoker",
+    "role": "Monster / Spellcaster",
+    "desc": "Sage in magenta robe with wooden staff conjuring an orb of Mage Flame"
+  },
+  {
+    "id": 19,
+    "pad": "19",
+    "name": "Cannibal Ghoul",
+    "role": "Monster / Undead",
+    "desc": "Decomposing green zombie gnawing on a bloody human arm and ribs"
+  },
+  {
+    "id": 20,
+    "pad": "20",
+    "name": "Shadow / Wraith",
+    "role": "Monster / Undead",
+    "desc": "Dark silhouette with burning glowing red eyes and dissipating dark mist"
+  },
+  {
+    "id": 21,
+    "pad": "21",
+    "name": "Sea Serpent / Lurker",
+    "role": "Monster / Beast",
+    "desc": "Massive green scaled serpent with open jaws, fangs, and spinal frill"
+  },
+  {
+    "id": 22,
+    "pad": "22",
+    "name": "Ice Golem",
+    "role": "Monster / Construct",
+    "desc": "Crystalline golem composed of jagged ice and glacial snow chunks"
+  },
+  {
+    "id": 23,
+    "pad": "23",
+    "name": "Skeleton",
+    "role": "Monster / Undead",
+    "desc": "Human skeleton with glowing red eye sockets wielding a short sword"
+  },
+  {
+    "id": 24,
+    "pad": "24",
+    "name": "Assassin",
+    "role": "Monster / Rogue",
+    "desc": "Muscular rogue in dark cowl with bow on back drawing a steel short sword"
+  },
+  {
+    "id": 25,
+    "pad": "25",
+    "name": "Wolf / Werewolf",
+    "role": "Monster / Beast",
+    "desc": "Furry snarling beast with pointed ears and bared predator fangs"
+  },
+  {
+    "id": 26,
+    "pad": "26",
+    "name": "Old Man / Hermit",
+    "role": "NPC / Town",
+    "desc": "Hunched elderly man in teal tunic with white hair leaning on walking cane"
+  },
+  {
+    "id": 27,
+    "pad": "27",
+    "name": "Giant Spider",
+    "role": "Monster / Beast",
+    "desc": "Colossal green venomous spider poised over web covered in human bones"
+  },
+  {
+    "id": 28,
+    "pad": "28",
+    "name": "Kobold / Reptile Orc",
+    "role": "Monster / Brute",
+    "desc": "Green reptilian snout with tusks, clawed hands, and orange leather vest"
+  },
+  {
+    "id": 29,
+    "pad": "29",
+    "name": "Eye Spy / Beholder",
+    "role": "Monster / Aberration",
+    "desc": "Floating pink spherical eyeball aberration with optic nerve tentacles"
+  },
+  {
+    "id": 30,
+    "pad": "30",
+    "name": "Mangar the Dark",
+    "role": "Boss / Sorcerer",
+    "desc": "Hooded sorcerer in royal blue robes raising hands skyward chanting"
+  },
+  {
+    "id": 31,
+    "pad": "31",
+    "name": "Grandmaster Monk",
+    "role": "Monster / Monk",
+    "desc": "Bald scarred monk in vibrant magenta robes in martial arts defense stance"
+  },
+  {
+    "id": 32,
+    "pad": "32",
+    "name": "Samurai",
+    "role": "Monster / Fighter",
+    "desc": "Samurai in blue lacquered armor with kabuto helmet drawing katana"
+  },
+  {
+    "id": 33,
+    "pad": "33",
+    "name": "Hydra",
+    "role": "Monster / Beast",
+    "desc": "Two-headed serpentine beast with yellow bellies and flickering tongues"
+  },
+  {
+    "id": 34,
+    "pad": "34",
+    "name": "Earth Elemental",
+    "role": "Monster / Elemental",
+    "desc": "Swirling humanoid avatar composed of living sand, dust, and rock particles"
+  },
+  {
+    "id": 35,
+    "pad": "35",
+    "name": "Frost Golem",
+    "role": "Monster / Construct",
+    "desc": "Crystalline frost golem (identical to 22)"
+  },
+  {
+    "id": 36,
+    "pad": "36",
+    "name": "Harkyn Castle",
+    "role": "Location / Exterior",
+    "desc": "Fortress exterior with white stone towers, blue conical spires & portcullis"
+  },
+  {
+    "id": 37,
+    "pad": "37",
+    "name": "City Gates",
+    "role": "Location / Landmark",
+    "desc": "Ornate decorative black wrought iron gate doors with stone pillars"
+  },
+  {
+    "id": 38,
+    "pad": "38",
+    "name": "Guardian Statue",
+    "role": "Location / Statue",
+    "desc": "Carved stone warrior monument on pedestal clutching a long spear/staff"
+  },
+  {
+    "id": 39,
+    "pad": "39",
+    "name": "City Portcullis",
+    "role": "Location / Landmark",
+    "desc": "Heavy arched timber gate with winch cable lift mechanism"
+  },
+  {
+    "id": 40,
+    "pad": "40",
+    "name": "Vampire",
+    "role": "Monster / Undead",
+    "desc": "Pale vampire with slicked black hair, draped cape, and bloody fangs"
+  },
+  {
+    "id": 41,
+    "pad": "41",
+    "name": "Decayed Zombie",
+    "role": "Monster / Undead",
+    "desc": "Rotting green corpse in ragged blue burial shroud clawing forward"
+  },
+  {
+    "id": 42,
+    "pad": "42",
+    "name": "Gargoyle / Demon",
+    "role": "Monster / Fiend",
+    "desc": "Muscular winged horned stone demon with glowing yellow eyes"
+  },
+  {
+    "id": 43,
+    "pad": "43",
+    "name": "Temple Colonnade",
+    "role": "Location / Sanctuary",
+    "desc": "Grand vaulted hallway flanked by neoclassical white stone pillars"
+  },
+  {
+    "id": 44,
+    "pad": "44",
+    "name": "The Scarlet Bard Exterior",
+    "role": "Location / Tavern",
+    "desc": "Half-timbered tavern facade with hanging sign displaying wine glass"
+  },
+  {
+    "id": 45,
+    "pad": "45",
+    "name": "Kylearan the Archmage",
+    "role": "NPC / Boss",
+    "desc": "Sorcerer in silver-trimmed robe with turquoise third-eye forehead gem"
+  },
+  {
+    "id": 46,
+    "pad": "46",
+    "name": "Garths Armory Exterior",
+    "role": "Location / Shop",
+    "desc": "Timber storefront with crossed broadswords over heater shield sign"
+  },
+  {
+    "id": 47,
+    "pad": "47",
+    "name": "Idol of Tarjan",
+    "role": "Location / Idol",
+    "desc": "Colossal golden-bronze horned idol statue with single ruby eye & empty socket"
+  },
+  {
+    "id": 48,
+    "pad": "48",
+    "name": "Tavern Hearth",
+    "role": "Location / Interior",
+    "desc": "Blazing brick fireplace, gathered patrons, and bard playing lute"
+  },
+  {
+    "id": 49,
+    "pad": "49",
+    "name": "Armored Orc",
+    "role": "Monster / Brute",
+    "desc": "Green goblinoid warrior in polished iron breastplate holding tower shield"
+  },
+  {
+    "id": 50,
+    "pad": "50",
+    "name": "Barbarian Berserker",
+    "role": "Monster / Fighter",
+    "desc": "Giant bare-chested warrior in fur cloak and golden helm with war shield"
+  },
+  {
+    "id": 51,
+    "pad": "51",
+    "name": "Emaciated Ghoul",
+    "role": "Monster / Undead",
+    "desc": "Gaunt, skeletal undead walker with exposed ribs in tattered loincloth"
+  },
+  {
+    "id": 52,
+    "pad": "52",
+    "name": "Interplay Logo",
+    "role": "Title / Credits",
+    "desc": "Official 1985 Interplay Productions banner with 3D logo block"
+  },
+  {
+    "id": 53,
+    "pad": "53",
+    "name": "Adventurers Guild Exterior",
+    "role": "Location / Guild",
+    "desc": "Stone building with arched wooden door and AG guild crest sign"
+  },
+  {
+    "id": 54,
+    "pad": "54",
+    "name": "Elder Archmage",
+    "role": "NPC / Review Board",
+    "desc": "Elderly wizard with flowing white beard & hair in bright purple robe"
+  },
+  {
+    "id": 55,
+    "pad": "55",
+    "name": "Treasure Chest",
+    "role": "Environs / Loot",
+    "desc": "Iron-banded wooden chest with arched lid, carry handles, and padlock"
+  },
+  {
+    "id": 56,
+    "pad": "56",
+    "name": "Garth the Armorer",
+    "role": "NPC / Shopkeeper",
+    "desc": "Garth in green sleeveless vest standing behind weapons racks"
+  },
+  {
+    "id": 57,
+    "pad": "57",
+    "name": "Review Board Tribunal",
+    "role": "Location / Review Board",
+    "desc": "Row of hooded magistrates in magenta robes seated at tribunal bench"
+  },
+  {
+    "id": 58,
+    "pad": "58",
+    "name": "Spinner Vortex",
+    "role": "Environs / Trap",
+    "desc": "Concentric green stone masonry tunnel vortex spiraling inward"
+  },
+  {
+    "id": 59,
+    "pad": "59",
+    "name": "Chanting Priests",
+    "role": "Location / Temple",
+    "desc": "Row of brown-hooded monks chanting with folded hands at sanctuary wall"
+  },
+  {
+    "id": 60,
+    "pad": "60",
+    "name": "Roscoes Emporium",
+    "role": "NPC / Shopkeeper",
+    "desc": "White-bearded wizard in emerald green robe petting a black cat at counter"
+  },
+  {
+    "id": 61,
+    "pad": "61",
+    "name": "Castle Throne Room",
+    "role": "Location / Castle",
+    "desc": "Long vaulted stone hall lined with golden sconces leading to gold throne"
+  },
+  {
+    "id": 62,
+    "pad": "62",
+    "name": "Empty Building",
+    "role": "Location / Interior",
+    "desc": "Cottage/tavern interior with rafter trusses, trestle table, bench & window"
+  },
+  {
+    "id": 63,
+    "pad": "63",
+    "name": "The Dragons Grog Bar",
+    "role": "Location / Tavern",
+    "desc": "Barkeep behind counter under stuffed green dragon trophy (2 DRINK MINIMUM)"
+  }
+]

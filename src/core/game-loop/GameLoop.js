@@ -12,6 +12,8 @@ export const GameState = {
   INTRO_SCENE:         'INTRO_SCENE',          // Amiga-style animated VR intro + main menu
   ADVENTURERS_GUILD:   'ADVENTURERS_GUILD',    // Adventurers Guild (tavern environment repurposed)
   GARTHS_SHOP:         'GARTHS_SHOP',          // Garth's Weapons & Wonders (Party Assembly & Gear)
+  TEMPLE:              'TEMPLE',               // Temple of the Divine Light / Mad God Tarjan
+  ROSCOE:              'ROSCOE',               // Roscoe's Energy Emporium (SP recharge)
   SKARA_BRAE_STREETS:  'SKARA_BRAE_STREETS',   // 3D First-Person City & Dungeon Exploration
   COMBAT_ZONE:         'COMBAT_ZONE',           // Dedicated 3D Spatial Battle Arena
 
@@ -27,7 +29,9 @@ const VALID_TRANSITIONS = {
   [GameState.INTRO_SCENE]:        [GameState.ADVENTURERS_GUILD],
   [GameState.ADVENTURERS_GUILD]:  [GameState.GARTHS_SHOP, GameState.SKARA_BRAE_STREETS],
   [GameState.GARTHS_SHOP]:        [GameState.ADVENTURERS_GUILD, GameState.COMBAT_ZONE, GameState.SKARA_BRAE_STREETS],
-  [GameState.SKARA_BRAE_STREETS]: [GameState.ADVENTURERS_GUILD, GameState.GARTHS_SHOP, GameState.COMBAT_ZONE],
+  [GameState.TEMPLE]:             [GameState.SKARA_BRAE_STREETS],
+  [GameState.ROSCOE]:             [GameState.SKARA_BRAE_STREETS],
+  [GameState.SKARA_BRAE_STREETS]: [GameState.ADVENTURERS_GUILD, GameState.GARTHS_SHOP, GameState.TEMPLE, GameState.ROSCOE, GameState.COMBAT_ZONE],
   [GameState.COMBAT_ZONE]:        [GameState.ADVENTURERS_GUILD, GameState.SKARA_BRAE_STREETS]
 };
 

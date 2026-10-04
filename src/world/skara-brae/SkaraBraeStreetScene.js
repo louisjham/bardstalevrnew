@@ -81,13 +81,16 @@ export class SkaraBraeStreetScene {
     this.dawnSkyTex = TextureGenerator.createDawnSkyTexture();
     this.disposables.push(this.starSkyTex, this.daySkyTex, this.duskSkyTex, this.dawnSkyTex);
 
-    const skyGeo = new THREE.SphereGeometry(130, 32, 16);
+    // Sky dome follows the camera each frame (see update()) so the player can
+    // never walk close enough to the 130m shell to hit the camera far clip plane.
+    const skyGeo = new THREE.SphereGeometry(90, 24, 12);
     this.skyMat = new THREE.MeshBasicMaterial({
       map: this.daySkyTex,
-      side: THREE.BackSide
+      side: THREE.BackSide,
+      depthWrite: false
     });
     this.skyMesh = new THREE.Mesh(skyGeo, this.skyMat);
-    this.skyMesh.position.set(0, 0, 0);
+    this.skyMesh.renderOrder = -1; // Always render first (behind everything)
     this.sceneGroup.add(this.skyMesh);
     this.disposables.push(skyGeo, this.skyMat);
 
@@ -241,13 +244,13 @@ export class SkaraBraeStreetScene {
     });
     this.disposables.push(streetTex, streetMat);
 
-    // Curb material
-    const curbMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+    // Curb material — Lambert is sufficient for static non-metallic geometry
+    const curbMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
     this.disposables.push(curbMat);
 
     // Roof and top materials
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.6 });
-    const stoneBasementMat = new THREE.MeshStandardMaterial({ color: 0x1f1d1b, roughness: 0.9 });
+    const roofMat = new THREE.MeshLambertMaterial({ color: 0x1e1b4b });
+    const stoneBasementMat = new THREE.MeshLambertMaterial({ color: 0x1f1d1b });
     this.disposables.push(roofMat, stoneBasementMat);
 
     const boxGeo = new THREE.BoxGeometry(S, bldgHeight, S);
@@ -1036,11 +1039,15 @@ export class SkaraBraeStreetScene {
           console.warn('Failed to load statue sprite for:', cfg.name, e);
         }
 
-        // Arcane Spotlight
-        const light = new THREE.PointLight(cfg.glowColor, 2.0, 5.0);
-        light.position.set(0, 1.8, 0);
-        statueGroup.add(light);
-        this.torches.push({ light, baseIntensity: 2.0 });
+        // Arcane glow — use a small emissive sphere instead of a PointLight.
+        // PointLights on Quest 2 are extremely expensive; we avoid them for purely
+        // decorative "ambient glow" effects that don't need to illuminate other meshes.
+        const glowGeo = new THREE.SphereGeometry(0.12, 6, 4);
+        const glowMat = new THREE.MeshBasicMaterial({ color: cfg.glowColor });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(0, 1.8, 0);
+        statueGroup.add(glowMesh);
+        this.disposables.push(glowGeo, glowMat);
 
         // Invisible Interaction Hitbox
         const hitBox = new THREE.Mesh(
@@ -1144,11 +1151,13 @@ export class SkaraBraeStreetScene {
       sewerGroup.add(grateMesh);
       this.disposables.push(grateTex, grateMat, grateMesh.geometry);
 
-      // Warning green light from below
-      const sewerLight = new THREE.PointLight(0x22c55e, 2.2, 5.0);
-      sewerLight.position.set(0, 0.5, 0);
-      sewerGroup.add(sewerLight);
-      this.torches.push({ light: sewerLight, baseIntensity: 2.2 });
+      // Ambient glow indicator — cheap emissive sphere, no PointLight
+      const sewerGlowGeo = new THREE.SphereGeometry(0.15, 6, 4);
+      const sewerGlowMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+      const sewerGlow = new THREE.Mesh(sewerGlowGeo, sewerGlowMat);
+      sewerGlow.position.set(0, 0.5, 0);
+      sewerGroup.add(sewerGlow);
+      this.disposables.push(sewerGlowGeo, sewerGlowMat);
 
       const hitBox = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 2.4), new THREE.MeshBasicMaterial({ visible: false }));
       hitBox.position.y = 0.75;
@@ -1186,11 +1195,13 @@ export class SkaraBraeStreetScene {
       padMesh.position.y = 0.03;
       padGroup.add(padMesh);
 
-      // Swirling Cyan/Magenta Point Light
-      const tpLight = new THREE.PointLight(0x06b6d4, 2.5, 6.0);
-      tpLight.position.set(0, 0.8, 0);
-      padGroup.add(tpLight);
-      this.torches.push({ light: tpLight, baseIntensity: 2.5 });
+      // Ambient teleporter glow — cheap emissive sphere, no PointLight
+      const tpGlowGeo = new THREE.SphereGeometry(0.18, 6, 4);
+      const tpGlowMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4 });
+      const tpGlow = new THREE.Mesh(tpGlowGeo, tpGlowMat);
+      tpGlow.position.set(0, 0.8, 0);
+      padGroup.add(tpGlow);
+      this.disposables.push(tpGlowGeo, tpGlowMat);
 
       this.disposables.push(padTex, padMat, padMesh.geometry);
 
@@ -1257,11 +1268,13 @@ export class SkaraBraeStreetScene {
       const fortressGroup = new THREE.Group();
       fortressGroup.position.set(worldX, 0, worldZ);
 
-      // Arcane portal glow
-      const dLight = new THREE.PointLight(df.color, 3.0, 7.0);
-      dLight.position.set(0, 2.0, 0);
-      fortressGroup.add(dLight);
-      this.torches.push({ light: dLight, baseIntensity: 3.0 });
+      // Arcane portal glow — emissive sphere, no PointLight
+      const dfGlowGeo = new THREE.SphereGeometry(0.2, 6, 4);
+      const dfGlowMat = new THREE.MeshBasicMaterial({ color: df.color });
+      const dfGlow = new THREE.Mesh(dfGlowGeo, dfGlowMat);
+      dfGlow.position.set(0, 2.0, 0);
+      fortressGroup.add(dfGlow);
+      this.disposables.push(dfGlowGeo, dfGlowMat);
 
       // Hitbox
       const hitBox = new THREE.Mesh(new THREE.BoxGeometry(3.0, 4.0, 3.0), new THREE.MeshBasicMaterial({ visible: false }));
@@ -1339,9 +1352,10 @@ export class SkaraBraeStreetScene {
       this.animatedUpdaters.forEach(updater => updater(time));
     }
 
-    // 2. Torch light flicker
+    // 2. Torch light flicker — pure sine, no Math.random() per frame
+    // (Math.random() inside a per-frame forEach over many lights wastes CPU)
     this.torches.forEach((t, idx) => {
-      t.light.intensity = t.baseIntensity + (Math.sin(time * 10 + idx * 2.5) * 0.35 + (Math.random() - 0.5) * 0.15);
+      t.light.intensity = t.baseIntensity + Math.sin(time * 9.7 + idx * 2.5) * 0.3 + Math.sin(time * 17.3 + idx * 4.1) * 0.12;
     });
 
     // 3. Slow subtle sky rotation
@@ -1349,7 +1363,14 @@ export class SkaraBraeStreetScene {
       this.skyMesh.rotation.y += deltaTime * 0.004;
     }
 
-    // 4. Align all statue & monument billboards to face camera (keeping upright Y)
+    // 4. Sky dome follows camera — prevents far-clip black-circle artifact
+    // when the player walks to the edges of the 30×30 map.
+    if (this.camera && this.skyMesh) {
+      const cp = this.camera.position;
+      this.skyMesh.position.set(cp.x, 0, cp.z);
+    }
+
+    // 5. Align all statue & monument billboards to face camera (keeping upright Y)
     if (this.camera && this.billboardObjects.length > 0) {
       const camPos = this.camera.position;
       this.billboardObjects.forEach(b => {

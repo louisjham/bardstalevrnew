@@ -31,9 +31,14 @@ for (let i = 1; i <= 63; i++) {
   }
 }
 
+// Special alias for bt1_bard.png matching bt1_04.png
+if (indexedFiles['04']) {
+  fs.copyFileSync(path.join(TARGET_DIR, indexedFiles['04']), path.join(TARGET_DIR, 'bt1_bard.png'));
+}
+
 console.log(`Successfully ingested ${Object.keys(indexedFiles).length} unique sprite sheets.`);
 
-// Mapping table correlating Monster IDs, Slugs and Classes to indexed sprites
+// Authoritative mapping table correlating Monster IDs, Slugs and Classes to visually verified authentic 1985 sprites
 const BASE_MAPPING = {
   // Hero Classes & Archetypes
   'warrior': 'bt1_01.png',
@@ -47,119 +52,240 @@ const BASE_MAPPING = {
   'magician': 'bt1_08.png',
   'sorcerer': 'bt1_08.png',
   'wizard': 'bt1_08.png',
-  'archmage': 'bt1_08.png',
+  'archmage': 'bt1_09.png',
 
-  // Canonical Monsters (Direct & Archetype Mappings)
-  'kobold': 'bt1_10.png',
+  // Canonical Monsters (Visually Verified 1985 Interplay Rips)
+  // 01: Melee Warriors & Fighters
+  'barbarian': 'bt1_01.png',
+  'mercenary': 'bt1_01.png',
+  'half_orc': 'bt1_01.png',
+  'swordsman': 'bt1_01.png',
+  'bladesman': 'bt1_01.png',
+  'warrior_elite': 'bt1_01.png',
+  'master_ninja': 'bt1_01.png',
+
+  // 02: Knights & Lords
+  'dwarf_king': 'bt1_02.png',
+  'samurai_lord': 'bt1_02.png',
+  'mangar_guard': 'bt1_02.png',
+
+  // 03: Small Folk, Rogues & Tricksters
   'hobbit': 'bt1_03.png',
   'gnome': 'bt1_03.png',
   'dwarf': 'bt1_03.png',
-  'hobgoblin': 'bt1_10.png',
-  'orc': 'bt1_11.png',
-  'skeleton': 'bt1_09.png',
-  'nomad': 'bt1_04.png',
-  'spider': 'bt1_14.png',
-  'mad_dog': 'bt1_15.png',
-  'barbarian': 'bt1_01.png',
-  'mercenary': 'bt1_01.png',
-  'wolf': 'bt1_15.png',
-  'jade_monk': 'bt1_06.png',
-  'half_orc': 'bt1_01.png',
-  'swordsman': 'bt1_01.png',
-  'zombie': 'bt1_12.png',
-  'samurai': 'bt1_01.png',
-  'black_widow': 'bt1_14.png',
-  'assassin': 'bt1_03.png',
-  'werewolf': 'bt1_15.png',
-  'ogre': 'bt1_16.png',
-  'wight': 'bt1_17.png',
-  'statue': 'bt1_18.png',
-  'bladesman': 'bt1_01.png',
-  'goblin_lord': 'bt1_10.png',
   'master_thief': 'bt1_03.png',
-  'ninja': 'bt1_01.png',
-  'spinner': 'bt1_14.png',
-  'scarlet_monk': 'bt1_06.png',
-  'doppleganger': 'bt1_22.png',
-  'stone_giant': 'bt1_19.png',
-  'ogre_magician': 'bt1_16.png',
-  'jackalwere': 'bt1_15.png',
-  'stone_elemental': 'bt1_18.png',
-  'blue_dragon': 'bt1_27.png',
-  'seeker': 'bt1_20.png',
-  'dwarf_king': 'bt1_02.png',
-  'samurai_lord': 'bt1_02.png',
-  'ghoul': 'bt1_12.png',
-  'azure_monk': 'bt1_06.png',
-  'weretiger': 'bt1_15.png',
-  'hydra': 'bt1_23.png',
-  'green_dragon': 'bt1_27.png',
-  'wraith': 'bt1_17.png',
-  'lurker': 'bt1_21.png',
-  'fire_giant': 'bt1_19.png',
-  'copper_dragon': 'bt1_27.png',
-  'ivory_monk': 'bt1_06.png',
-  'shadow': 'bt1_17.png',
-  'berserker': 'bt1_01.png',
-  'white_dragon': 'bt1_27.png',
-  'ice_giant': 'bt1_19.png',
-  'eye_spy': 'bt1_20.png',
-  'ogre_lord': 'bt1_16.png',
-  'body_snatcher': 'bt1_21.png',
-  'xorn': 'bt1_24.png',
-  'phantom': 'bt1_17.png',
-  'lesser_demon': 'bt1_25.png',
-  'fred': 'bt1_03.png',
-  'master_ninja': 'bt1_01.png',
-  'war_giant': 'bt1_19.png',
-  'warrior_elite': 'bt1_01.png',
-  'bone_crusher': 'bt1_09.png',
-  'ghost': 'bt1_17.png',
-  'grey_dragon': 'bt1_27.png',
-  'basilisk': 'bt1_24.png',
-  'evil_eye': 'bt1_20.png',
-  'mimic': 'bt1_22.png',
-  'golem': 'bt1_18.png',
-  'vampire': 'bt1_26.png',
-  'demon': 'bt1_25.png',
-  'bandersnatch': 'bt1_23.png',
-  'maze_dweller': 'bt1_21.png',
-  'mongo': 'bt1_28.png',
-  'mangar_guard': 'bt1_02.png',
   'gimp': 'bt1_03.png',
-  'red_dragon': 'bt1_27.png',
-  'titan': 'bt1_19.png',
+  'fred': 'bt1_03.png',
+
+  // 04: Bards & Performers
+  'nomad': 'bt1_04.png',
+
+  // 06: Monks & Ascetics
+  'jade_monk': 'bt1_06.png',
+  'scarlet_monk': 'bt1_06.png',
+  'azure_monk': 'bt1_06.png',
+  'ivory_monk': 'bt1_06.png',
+
+  // 07: Conjurers
   'master_conjurer': 'bt1_07.png',
+
+  // 08: Magicians & Wizards
   'master_magician': 'bt1_08.png',
   'master_sorcerer': 'bt1_08.png',
-  'mind_shadow': 'bt1_17.png',
-  'spectre': 'bt1_17.png',
-  'cloud_giant': 'bt1_19.png',
-  'beholder': 'bt1_20.png',
-  'vampire_lord': 'bt1_26.png',
-  'greater_demon': 'bt1_25.png',
   'master_wizard': 'bt1_08.png',
-  'mad_god': 'bt1_29.png',
-  'maze_master': 'bt1_21.png',
-  'death_denizen': 'bt1_21.png',
-  'jabberwock': 'bt1_23.png',
-  'black_dragon': 'bt1_27.png',
+
+  // 09: Enchanters & Elder Mages
+  'sorcerer_elder': 'bt1_09.png',
+
+  // 10: Clerics & Priests
+  'high_priest': 'bt1_10.png',
+  'priest': 'bt1_10.png',
+  'cleric': 'bt1_10.png',
+
+  // 11: Treasure & Gold
+  'treasure_hoard': 'bt1_11.png',
+  'gold_pile': 'bt1_11.png',
+
+  // 12: Celestials & Summons
+  'angel': 'bt1_12.png',
+  'archon': 'bt1_12.png',
+  'deva': 'bt1_12.png',
+
+  // 14: Winged Dragons & Wyverns
+  'dragon': 'bt1_14.png',
+  'green_dragon': 'bt1_14.png',
+  'blue_dragon': 'bt1_14.png',
+  'copper_dragon': 'bt1_14.png',
+  'white_dragon': 'bt1_14.png',
+  'grey_dragon': 'bt1_14.png',
+  'red_dragon': 'bt1_14.png',
+  'black_dragon': 'bt1_14.png',
+  'wyvern': 'bt1_14.png',
+
+  // 15: Ogres & Trolls
+  'ogre': 'bt1_15.png',
+  'ogre_lord': 'bt1_15.png',
+  'ogre_magician': 'bt1_15.png',
+  'troll': 'bt1_15.png',
+
+  // 16: Scholars & Scribes
+  'scholar': 'bt1_16.png',
+  'scribe': 'bt1_16.png',
+  'review_board_elder': 'bt1_16.png',
+
+  // 17: Mercenary Veterans
+  'mercenary_veteran': 'bt1_17.png',
+  'guild_guard': 'bt1_17.png',
+
+  // 18: Evokers & Fire Casters
+  'evoker': 'bt1_18.png',
+  'flame_caster': 'bt1_18.png',
+
+  // 19: Ghouls & Cannibals
+  'ghoul': 'bt1_19.png',
+  'cannibal_ghoul': 'bt1_19.png',
+  'flesh_eater': 'bt1_19.png',
+
+  // 20: Shadows & Wraiths
+  'shadow': 'bt1_20.png',
+  'wraith': 'bt1_20.png',
+  'spectre': 'bt1_20.png',
+  'phantom': 'bt1_20.png',
+  'mind_shadow': 'bt1_20.png',
+  'soul_sucker': 'bt1_20.png',
+
+  // 21: Lurkers & Sea Serpents
+  'lurker': 'bt1_21.png',
+  'sea_serpent': 'bt1_21.png',
+  'maze_dweller': 'bt1_21.png',
+  'body_snatcher': 'bt1_21.png',
+
+  // 22 / 35: Golems & Constructs
+  'ice_golem': 'bt1_22.png',
+  'crystal_golem': 'bt1_22.png',
+  'golem': 'bt1_22.png',
+
+  // 23: Skeletons & Undead
+  'skeleton': 'bt1_23.png',
+  'bone_crusher': 'bt1_23.png',
+
+  // 24: Assassins & Nightblades
+  'assassin': 'bt1_24.png',
+  'nightblade': 'bt1_24.png',
+  'ninja': 'bt1_24.png',
+
+  // 25: Wolves, Werewolves & Beasts
+  'wolf': 'bt1_25.png',
+  'werewolf': 'bt1_25.png',
+  'mad_dog': 'bt1_25.png',
+  'jackalwere': 'bt1_25.png',
+  'weretiger': 'bt1_25.png',
+
+  // 26: Old Men & Hermits
+  'old_man': 'bt1_26.png',
+  'hermit': 'bt1_26.png',
+
+  // 27: Spiders & Arachnids
+  'spider': 'bt1_27.png',
+  'black_widow': 'bt1_27.png',
+  'spinner': 'bt1_27.png',
+
+  // 28: Kobolds & Reptilian Orcs
+  'kobold': 'bt1_28.png',
+  'goblin_lord': 'bt1_28.png',
+
+  // 29: Eye Aberrations
+  'eye_spy': 'bt1_29.png',
+  'seeker': 'bt1_29.png',
+  'evil_eye': 'bt1_29.png',
+  'beholder': 'bt1_29.png',
+
+  // 30: Mangar
   'mangar': 'bt1_30.png',
-  'crystal_golem': 'bt1_18.png',
-  'soul_sucker': 'bt1_17.png',
-  'storm_giant': 'bt1_19.png',
-  'ancient_enemy': 'bt1_22.png',
-  'balrog': 'bt1_25.png',
-  'lich': 'bt1_26.png',
-  'demon_lord': 'bt1_25.png',
-  'old_man': 'bt1_03.png'
+  'mangar_the_dark': 'bt1_30.png',
+
+  // 31: Master Monks
+  'master_monk': 'bt1_31.png',
+
+  // 32: Samurai
+  'samurai': 'bt1_32.png',
+
+  // 33: Hydras & Two-Headed Beasts
+  'hydra': 'bt1_33.png',
+  'jabberwock': 'bt1_33.png',
+  'bandersnatch': 'bt1_33.png',
+
+  // 34: Elementals
+  'earth_elemental': 'bt1_34.png',
+  'stone_elemental': 'bt1_34.png',
+  'sand_golem': 'bt1_34.png',
+  'xorn': 'bt1_34.png',
+
+  // 38: Statues
+  'statue': 'bt1_38.png',
+  'stone_statue': 'bt1_38.png',
+
+  // 40: Vampires
+  'vampire': 'bt1_40.png',
+  'vampire_lord': 'bt1_40.png',
+  'lich': 'bt1_40.png',
+
+  // 41: Decayed Zombies
+  'zombie': 'bt1_41.png',
+
+  // 42: Gargoyles & Demons
+  'gargoyle': 'bt1_42.png',
+  'demon': 'bt1_42.png',
+  'lesser_demon': 'bt1_42.png',
+  'greater_demon': 'bt1_42.png',
+  'demon_lord': 'bt1_42.png',
+  'balrog': 'bt1_42.png',
+  'doppleganger': 'bt1_42.png',
+  'mimic': 'bt1_42.png',
+  'ancient_enemy': 'bt1_42.png',
+
+  // 45: Kylearan
+  'kylearan': 'bt1_45.png',
+
+  // 47: Tarjan & Idols
+  'mad_god': 'bt1_47.png',
+  'mad_god_tarjan': 'bt1_47.png',
+
+  // 49: Armored Orcs & Goblins
+  'orc': 'bt1_49.png',
+  'hobgoblin': 'bt1_49.png',
+
+  // 50: Barbarians & Berserkers
+  'berserker': 'bt1_50.png',
+  'mongo': 'bt1_50.png',
+  'stone_giant': 'bt1_50.png',
+  'fire_giant': 'bt1_50.png',
+  'ice_giant': 'bt1_50.png',
+  'war_giant': 'bt1_50.png',
+  'cloud_giant': 'bt1_50.png',
+  'storm_giant': 'bt1_50.png',
+  'titan': 'bt1_50.png',
+
+  // 51: Emaciated Ghouls & Wights
+  'wight': 'bt1_51.png',
+  'death_denizen': 'bt1_51.png',
+  'maze_master': 'bt1_51.png',
+
+  // 55: Treasure Chest
+  'treasure_chest': 'bt1_55.png',
+
+  // 56: Garth the Armorer
+  'garth': 'bt1_56.png',
+
+  // 60: Roscoe
+  'roscoe': 'bt1_60.png'
 };
 
-// Also create direct named files in public/assets/sprites/ (e.g. skeleton.png, paladin.png, etc.)
+// Copy named files into public/assets/sprites/ (overwriting any previous incorrect files)
 for (const [key, sourceFile] of Object.entries(BASE_MAPPING)) {
   const sourcePath = path.join(TARGET_DIR, sourceFile);
   const targetNamedPath = path.join(TARGET_DIR, `${key}.png`);
-  if (fs.existsSync(sourcePath) && !fs.existsSync(targetNamedPath)) {
+  if (fs.existsSync(sourcePath)) {
     fs.copyFileSync(sourcePath, targetNamedPath);
   }
 }
@@ -192,27 +318,36 @@ export function getSpriteSheetPath(key) {
   if (key === undefined || key === null) return null;
   const slug = String(key).toLowerCase().trim();
   
+  // If already a direct file path, relative path, or URL, return it directly
+  if (slug.startsWith('/') || slug.startsWith('http') || slug.startsWith('.') || slug.endsWith('.png')) {
+    return key;
+  }
+
   // Direct manifest match
   if (SPRITE_SHEET_MAP[slug]) {
     return SPRITE_SHEET_MAP[slug];
   }
 
-  // Handle numbered variants like conjurer_20, magician_35, sorcerer_53, wizard_82
-  if (slug.startsWith('conjurer_')) return SPRITE_SHEET_MAP['conjurer'];
-  if (slug.startsWith('magician_')) return SPRITE_SHEET_MAP['magician'];
-  if (slug.startsWith('sorcerer_')) return SPRITE_SHEET_MAP['sorcerer'];
-  if (slug.startsWith('wizard_')) return SPRITE_SHEET_MAP['wizard'];
+  // Handle numbered variants like conjurer_06, magician_07, sorcerer_22, wizard_23
+  if (slug.startsWith('conjurer_') || slug.startsWith('conjurer')) return SPRITE_SHEET_MAP['conjurer'];
+  if (slug.startsWith('magician_') || slug.startsWith('magician')) return SPRITE_SHEET_MAP['magician'];
+  if (slug.startsWith('sorcerer_') || slug.startsWith('sorcerer')) return SPRITE_SHEET_MAP['sorcerer'];
+  if (slug.startsWith('wizard_') || slug.startsWith('wizard')) return SPRITE_SHEET_MAP['wizard'];
 
   // Smart archetype fallbacks
-  if (slug.includes('dragon')) return SPRITE_SHEET_MAP['blue_dragon'];
-  if (slug.includes('giant') || slug.includes('titan')) return SPRITE_SHEET_MAP['stone_giant'];
+  if (slug.includes('dragon') || slug.includes('wyvern')) return SPRITE_SHEET_MAP['dragon'];
+  if (slug.includes('giant') || slug.includes('titan') || slug.includes('berserker')) return SPRITE_SHEET_MAP['berserker'];
   if (slug.includes('golem') || slug.includes('statue')) return SPRITE_SHEET_MAP['statue'];
-  if (slug.includes('demon') || slug.includes('balrog')) return SPRITE_SHEET_MAP['demon'];
+  if (slug.includes('demon') || slug.includes('balrog') || slug.includes('gargoyle')) return SPRITE_SHEET_MAP['demon'];
   if (slug.includes('monk')) return SPRITE_SHEET_MAP['monk'];
-  if (slug.includes('vampire') || slug.includes('lich')) return SPRITE_SHEET_MAP['vampire'];
-  if (slug.includes('wolf') || slug.includes('dog') || slug.includes('tiger')) return SPRITE_SHEET_MAP['wolf'];
-  if (slug.includes('eye') || slug.includes('spy') || slug.includes('beholder')) return SPRITE_SHEET_MAP['eye_spy'];
-  if (slug.includes('ghost') || slug.includes('shadow') || slug.includes('spectre') || slug.includes('wraith')) return SPRITE_SHEET_MAP['ghost'];
+  if (slug.includes('vampire') || slug.includes('lich') || slug.includes('nosferatu')) return SPRITE_SHEET_MAP['vampire'];
+  if (slug.includes('wolf') || slug.includes('dog') || slug.includes('hound') || slug.includes('tiger')) return SPRITE_SHEET_MAP['wolf'];
+  if (slug.includes('spider') || slug.includes('widow') || slug.includes('spinner')) return SPRITE_SHEET_MAP['spider'];
+  if (slug.includes('skeleton')) return SPRITE_SHEET_MAP['skeleton'];
+  if (slug.includes('zombie') || slug.includes('ghoul') || slug.includes('corpse')) return SPRITE_SHEET_MAP['zombie'];
+  if (slug.includes('orc') || slug.includes('goblin') || slug.includes('kobold')) return SPRITE_SHEET_MAP['orc'];
+  if (slug.includes('eye') || slug.includes('spy') || slug.includes('beholder') || slug.includes('seeker')) return SPRITE_SHEET_MAP['eye_spy'];
+  if (slug.includes('ghost') || slug.includes('shadow') || slug.includes('spectre') || slug.includes('wraith')) return SPRITE_SHEET_MAP['shadow'];
 
   // Default warrior fallback
   return SPRITE_SHEET_MAP['warrior'];

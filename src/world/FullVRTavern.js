@@ -314,7 +314,7 @@ export class FullVRTavern {
     const bardGroup = new THREE.Group();
     bardGroup.position.set(0, 0.45, -4.8);
     this.bardMesh = bardGroup;
-    this.bardMesh.userData = { isBard: true, isPatron: true, patronKey: 'bard', name: 'The Scarlet Bard' };
+    this.bardMesh.userData = { isBard: true, patronKey: 'bard', name: 'The Scarlet Bard' };
 
     const bardHitbox = new THREE.Mesh(
       new THREE.BoxGeometry(1.4, 2.0, 1.0),

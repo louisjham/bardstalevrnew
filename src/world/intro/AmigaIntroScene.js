@@ -124,9 +124,11 @@ export class AmigaIntroScene {
     this.menuButtons = [];
     this.hoveredButton = -1;
 
-    // Bard sprite image
-    this.bardImages = [];
+    // Bard sprite — raw spritesheet image (4 frames side-by-side)
+    this.bardSheet  = null;   // HTMLImageElement of the full sheet
     this.bardLoaded = false;
+    // Legacy alias kept so any external code referencing bardImages doesn't crash
+    this.bardImages = [];
 
     // Background image (full screen Amiga intro art)
     this.bgImage   = null;
@@ -229,14 +231,16 @@ export class AmigaIntroScene {
 
   // ─── Load Amiga sprite frames ────────────────────────────────────────────────
   _loadSprites() {
-    // Load bard animation frames (bt1_bard.png is the main sprite)
+    // bt1_bard.png is a 4-frame horizontal spritesheet (all frames side-by-side).
+    // We load it once and clip the correct frame in _renderIntro() using the
+    // 9-argument drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh) form.
     const bardSpriteUrls = [
       '/assets/sprites/bt1_bard.png',
+      '/assets/sprites/bt1_04.png',
       '/assets/sprites/bard.png',
       '/assets/sprites/bt1_01.png',
     ];
 
-    // Try to load each bard image, use first that succeeds
     const tryLoad = (urls, index = 0) => {
       if (index >= urls.length) {
         this.bardLoaded = false;
@@ -244,14 +248,9 @@ export class AmigaIntroScene {
       }
       const img = new Image();
       img.onload = () => {
-        this.bardImages.push(img);
+        this.bardSheet  = img;
+        this.bardImages = [img]; // legacy alias
         this.bardLoaded = true;
-        // Also try to load a second frame for animation
-        if (index + 1 < urls.length) {
-          const img2 = new Image();
-          img2.onload = () => { this.bardImages.push(img2); };
-          img2.src = urls[index + 1];
-        }
       };
       img.onerror = () => tryLoad(urls, index + 1);
       img.src = urls[index];
@@ -449,19 +448,33 @@ export class AmigaIntroScene {
     ctx.globalAlpha = 1.0;
 
     // ── Bard sprite (left side) ───────────────────────────────────────────────
-    if (this.bardLoaded && this.bardImages.length > 0) {
-      const frame = this.bardImages[this.bardFrame % this.bardImages.length];
-      const bx = 30;
-      const by = 60;
-      const bw = 280;
-      const bh = 380;
+    if (this.bardLoaded && this.bardSheet) {
+      const sheet = this.bardSheet;
+
+      // bt1_bard.png is 4 frames wide × 1 frame tall (horizontal strip).
+      // Detect frame count from aspect ratio: if width > height it's a strip.
+      const sheetW = sheet.naturalWidth  || sheet.width;
+      const sheetH = sheet.naturalHeight || sheet.height;
+      // Guard: if the image is taller than wide it's already a single frame
+      const frameCount = (sheetW > sheetH * 1.5) ? 4 : 1;
+      const frameW = Math.floor(sheetW / frameCount);
+
+      // Which frame to show this tick
+      const frameIdx = this.bardFrame % frameCount;
+      const srcX = frameIdx * frameW;
+
+      // Destination: large, centred on the left half of the screen
+      const bx = 20;
+      const by = 30;
+      const bw = 420;
+      const bh = Math.round(bw * (sheetH / frameW)); // keep original aspect ratio
 
       // Glow behind bard
-      const grd = ctx.createRadialGradient(bx + bw/2, by + bh/2, 20, bx + bw/2, by + bh/2, bw * 0.8);
-      grd.addColorStop(0, 'rgba(120,60,200,0.25)');
+      const grd = ctx.createRadialGradient(bx + bw/2, by + bh/2, 30, bx + bw/2, by + bh/2, bw * 0.9);
+      grd.addColorStop(0, 'rgba(120,60,200,0.30)');
       grd.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = grd;
-      ctx.fillRect(0, 0, bx + bw + 50, H);
+      ctx.fillRect(0, 0, bx + bw + 40, H);
 
       // Slight scale pulse
       const pulse = 1.0 + 0.015 * Math.sin(this.elapsed * 2.5);
@@ -469,7 +482,9 @@ export class AmigaIntroScene {
       ctx.translate(bx + bw/2, by + bh/2);
       ctx.scale(pulse, pulse);
       ctx.translate(-(bx + bw/2), -(by + bh/2));
-      ctx.drawImage(frame, bx, by, bw, bh);
+
+      // Draw only the current frame from the spritesheet
+      ctx.drawImage(sheet, srcX, 0, frameW, sheetH, bx, by, bw, bh);
       ctx.restore();
 
       // Musical note particles floating up from bard
@@ -495,7 +510,8 @@ export class AmigaIntroScene {
     }
 
     // ── Title banner ──────────────────────────────────────────────────────────
-    const titleX = 320;
+    // bard slot is now 420px wide + 20px left margin — start text at 460px
+    const titleX = 460;
     const titleY = 80;
     const titleW = W - titleX - 20;
 

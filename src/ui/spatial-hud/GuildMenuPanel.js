@@ -14,6 +14,8 @@
  *      Name Party | Save Party | Delete Character | Delete Party
  *
  * WebXR + Desktop dual compatible.
+ * IMPORTANT: No window.prompt() or window.confirm() — those block/freeze in WebXR.
+ *            All input/confirmation is done via in-panel canvas sub-screens.
  */
 
 import * as THREE from 'three';
@@ -48,23 +50,27 @@ const C = {
   separator:  '#2a1a40',
   breadcrumb: '#665577',
   back:       '#8855cc',
+  confirmYes: '#2a7a2a',
+  confirmNo:  '#7a2a2a',
 };
 
 // ─── Menu structure ───────────────────────────────────────────────────────────
-const MENU_PAGES = {
-  main: {
-    title: 'Adventurers Guild',
-    subtitle: 'Character & Party Management',
-    items: [
-      { id: 'create_char',     icon: '✦', label: 'Create New Character',       desc: 'Roll stats and add a new hero to the roster' },
-      { id: 'add_to_party',    icon: '➕', label: 'Add Character to Party',     desc: 'Add a roster character to the active party' },
-      { id: 'remove_from_party', icon: '➖', label: 'Remove from Party',         desc: 'Move a party member back to the roster' },
-      { id: 'name_party',      icon: '📜', label: 'Name Party',                 desc: 'Give your adventuring company a name' },
-      { id: 'save_party',      icon: '💾', label: 'Save Party',                 desc: 'Save your party progress to local storage' },
-      { id: 'delete_char',     icon: '☠', label: 'Delete Character',            desc: 'Permanently remove a character from roster' },
-      { id: 'delete_party',    icon: '💀', label: 'Delete Party',               desc: 'Disband and erase the entire party (cannot undo)' },
-    ],
-  },
+const MENU_ITEMS = [
+  { id: 'create_char',       icon: '✦', label: 'Create New Character',       desc: 'Roll stats and add a new hero to the roster' },
+  { id: 'add_to_party',      icon: '➕', label: 'Add Character to Party',     desc: 'Add a roster character to the active party' },
+  { id: 'remove_from_party', icon: '➖', label: 'Remove from Party',          desc: 'Move a party member back to the roster' },
+  { id: 'name_party',        icon: '📜', label: 'Name Party',                 desc: 'Give your adventuring company a name' },
+  { id: 'save_party',        icon: '💾', label: 'Save Party',                 desc: 'Save your party progress to local storage' },
+  { id: 'delete_char',       icon: '☠',  label: 'Delete Character',           desc: 'Permanently remove a character from roster' },
+  { id: 'delete_party',      icon: '💀', label: 'Delete Party',               desc: 'Disband and erase the entire party (cannot undo)' },
+];
+
+// ─── Sub-screen mode constants ────────────────────────────────────────────────
+const MODE = {
+  MAIN:        'MAIN',
+  CONFIRM:     'CONFIRM',     // Yes/No dialog
+  NAME_INPUT:  'NAME_INPUT',  // Virtual keyboard / letter picker
+  CHAR_SELECT: 'CHAR_SELECT', // Pick a character from a list
 };
 
 export class GuildMenuPanel {
@@ -83,14 +89,21 @@ export class GuildMenuPanel {
     this.showToast = showToast;
 
     // Panel state
-    this.isOpen       = false;
-    this.currentPage  = 'main';
-    this.hoveredItem  = -1;
-    this.isDragging   = false;
-    this.dragOffset   = new THREE.Vector3();
+    this.isOpen      = false;
+    this.hoveredItem = -1;
+    this.isDragging  = false;
+    this.dragOffset  = new THREE.Vector3();
 
-    // Breadcrumb navigation
-    this.pageStack    = [];
+    // Sub-screen state
+    this.mode          = MODE.MAIN;
+    this.confirmMsg    = '';
+    this.confirmAction = null;   // function to call on YES
+    this.confirmHover  = -1;     // 0=Yes, 1=No
+    this.charSelectList   = [];  // array of {label, value} for character picker
+    this.charSelectAction = null;// function(value) called on selection
+    this.charSelectHover  = -1;
+    this.nameInputStr  = '';
+    this.nameInputAction = null; // function(name) called on confirm
 
     // Canvas dimensions
     this.CW = 640;
@@ -182,8 +195,7 @@ export class GuildMenuPanel {
   open(party) {
     if (party) this.party = party;
     this.isOpen      = true;
-    this.currentPage = 'main';
-    this.pageStack   = [];
+    this.mode        = MODE.MAIN;
     this.hoveredItem = -1;
 
     // Position: 1.5m in front of camera, at eye height, face the camera
@@ -208,8 +220,9 @@ export class GuildMenuPanel {
 
   /** Close and hide the panel. */
   close() {
-    this.isOpen = false;
+    this.isOpen     = false;
     this.isDragging = false;
+    this.mode       = MODE.MAIN;
     this.panelGroup.visible = false;
   }
 
@@ -226,15 +239,25 @@ export class GuildMenuPanel {
       return;
     }
 
-    // Map UV to item index
+    if (this.mode === MODE.CONFIRM) {
+      this._handleConfirmClick(uv);
+      return;
+    }
+
+    if (this.mode === MODE.CHAR_SELECT) {
+      this._handleCharSelectClick(uv);
+      return;
+    }
+
+    if (this.mode === MODE.NAME_INPUT) {
+      this._handleNameInputClick(uv);
+      return;
+    }
+
+    // MAIN mode — map UV to item index
     const idx = this._uvToItemIndex(uv);
-    if (idx < 0) return;
-
-    const page = MENU_PAGES[this.currentPage];
-    if (!page || idx >= page.items.length) return;
-
-    const item = page.items[idx];
-    this._activateItem(item);
+    if (idx < 0 || idx >= MENU_ITEMS.length) return;
+    this._activateItem(MENU_ITEMS[idx]);
   }
 
   /**
@@ -243,12 +266,26 @@ export class GuildMenuPanel {
    */
   handleHover(uv) {
     if (!uv) {
-      if (this.hoveredItem !== -1) {
+      if (this.hoveredItem !== -1 || this.confirmHover !== -1 || this.charSelectHover !== -1) {
         this.hoveredItem = -1;
+        this.confirmHover = -1;
+        this.charSelectHover = -1;
         this._render();
       }
       return;
     }
+
+    if (this.mode === MODE.CONFIRM) {
+      const h = this._uvToConfirmBtn(uv);
+      if (h !== this.confirmHover) { this.confirmHover = h; this._render(); }
+      return;
+    }
+    if (this.mode === MODE.CHAR_SELECT) {
+      const h = this._uvToCharSelectIdx(uv);
+      if (h !== this.charSelectHover) { this.charSelectHover = h; this._render(); }
+      return;
+    }
+
     const idx = this._uvToItemIndex(uv);
     if (idx !== this.hoveredItem) {
       this.hoveredItem = idx;
@@ -284,16 +321,6 @@ export class GuildMenuPanel {
   }
 
   /**
-   * Called every frame to update drag if controller data is provided.
-   * @param {THREE.Vector3|null} controllerWorldPos
-   */
-  update(controllerWorldPos = null) {
-    if (this.isDragging && controllerWorldPos) {
-      this.updateDrag(controllerWorldPos);
-    }
-  }
-
-  /**
    * Set the party reference (called when party changes).
    */
   setParty(party) {
@@ -303,21 +330,19 @@ export class GuildMenuPanel {
 
   /**
    * Returns all raycastable objects for this panel.
+   * IMPORTANT: returns empty array when panel is closed so that
+   * closed-panel colliders do NOT swallow bard-click events.
    */
   get interactableObjects() {
-    const objs = [this.panelCollider, ...this.grabHandles];
-    return objs;
+    if (!this.isOpen) return [];
+    return [this.panelCollider, ...this.grabHandles];
   }
 
-  // ─── UV → item index ─────────────────────────────────────────────────────────
+  // ─── UV → item index (MAIN mode) ─────────────────────────────────────────────
   _uvToItemIndex(uv) {
-    // Menu items occupy roughly UV y range [0.12 ... 0.90], each item evenly spaced.
-    const page = MENU_PAGES[this.currentPage];
-    if (!page) return -1;
-
-    const n = page.items.length;
-    const yStart = 0.12;  // top of item list in UV
-    const yEnd   = 0.91;  // bottom of item list
+    const n = MENU_ITEMS.length;
+    const yStart = 0.12;
+    const yEnd   = 0.91;
     const xStart = 0.04;
     const xEnd   = 0.96;
 
@@ -331,37 +356,110 @@ export class GuildMenuPanel {
     return idx;
   }
 
-  // ─── Activate an item ────────────────────────────────────────────────────────
+  // ─── UV → confirm button (0=Yes, 1=No, -1=none) ──────────────────────────────
+  _uvToConfirmBtn(uv) {
+    // Yes button: left half, lower portion
+    // No button: right half, lower portion
+    if (uv.y > 0.55 || uv.y < 0.30) return -1;
+    if (uv.x < 0.08 || uv.x > 0.92) return -1;
+    return uv.x < 0.50 ? 0 : 1;
+  }
+
+  // ─── UV → char select index ───────────────────────────────────────────────────
+  _uvToCharSelectIdx(uv) {
+    const list = this.charSelectList;
+    if (!list.length) return -1;
+    const yStart = 0.20;
+    const yEnd   = 0.82;
+    if (uv.y < yStart || uv.y > yEnd) return -1;
+    const fraction = (uv.y - yStart) / (yEnd - yStart);
+    const idx = Math.floor((1.0 - fraction) * list.length);
+    if (idx < 0 || idx >= list.length) return -1;
+    return idx;
+  }
+
+  // ─── Sub-screen click handlers ────────────────────────────────────────────────
+
+  _handleConfirmClick(uv) {
+    const btn = this._uvToConfirmBtn(uv);
+    if (btn === 0) {
+      // Yes
+      const action = this.confirmAction;
+      this._returnToMain();
+      if (action) action();
+    } else if (btn === 1) {
+      // No
+      this._returnToMain();
+    }
+  }
+
+  _handleCharSelectClick(uv) {
+    const idx = this._uvToCharSelectIdx(uv);
+    if (idx < 0 || idx >= this.charSelectList.length) {
+      // Back button area (top)
+      if (uv.y > 0.88) { this._returnToMain(); }
+      return;
+    }
+    const entry = this.charSelectList[idx];
+    const action = this.charSelectAction;
+    this._returnToMain();
+    if (action) action(entry.value, idx);
+  }
+
+  _handleNameInputClick(uv) {
+    // Simple virtual keyboard: A-Z rows + confirm/back/clear
+    // Confirm: y > 0.88 (top area in UV = bottom in canvas = confirm row)
+    // Clear: bottom-left
+    // Back/Cancel: bottom-right
+    const keyResult = this._uvToNameKey(uv);
+    if (!keyResult) return;
+
+    if (keyResult === 'CONFIRM') {
+      const name = this.nameInputStr.trim();
+      const action = this.nameInputAction;
+      this.nameInputStr = '';
+      this._returnToMain();
+      if (name && action) action(name);
+      return;
+    }
+    if (keyResult === 'CANCEL') {
+      this.nameInputStr = '';
+      this._returnToMain();
+      return;
+    }
+    if (keyResult === 'CLEAR') {
+      this.nameInputStr = '';
+      this._render();
+      return;
+    }
+    if (keyResult === 'BACKSPACE') {
+      this.nameInputStr = this.nameInputStr.slice(0, -1);
+      this._render();
+      return;
+    }
+    if (this.nameInputStr.length < 24) {
+      this.nameInputStr += keyResult;
+      this._render();
+    }
+  }
+
+  // ─── Activate a main menu item ────────────────────────────────────────────────
   _activateItem(item) {
     switch (item.id) {
-      case 'create_char':
-        this._handleCreateCharacter();
-        break;
-      case 'add_to_party':
-        this._handleAddToParty();
-        break;
-      case 'remove_from_party':
-        this._handleRemoveFromParty();
-        break;
-      case 'name_party':
-        this._handleNameParty();
-        break;
-      case 'save_party':
-        this._handleSaveParty();
-        break;
-      case 'delete_char':
-        this._handleDeleteCharacter();
-        break;
-      case 'delete_party':
-        this._handleDeleteParty();
-        break;
+      case 'create_char':     this._handleCreateCharacter();  break;
+      case 'add_to_party':    this._handleAddToParty();       break;
+      case 'remove_from_party': this._handleRemoveFromParty(); break;
+      case 'name_party':      this._handleNameParty();        break;
+      case 'save_party':      this._handleSaveParty();        break;
+      case 'delete_char':     this._handleDeleteCharacter();  break;
+      case 'delete_party':    this._handleDeleteParty();      break;
       default:
         if (this.onAction) this.onAction(item.id, { item });
     }
     this._render();
   }
 
-  // ─── Action handlers ──────────────────────────────────────────────────────────
+  // ─── Action handlers (NO window.prompt/confirm — all in-panel) ───────────────
 
   _handleCreateCharacter() {
     this.showToast?.('✦ Opening Character Creation...');
@@ -370,8 +468,30 @@ export class GuildMenuPanel {
   }
 
   _handleAddToParty() {
-    this.showToast?.('➕ Select a character from the roster to join the party.');
-    if (this.onAction) this.onAction('add_to_party', { party: this.party });
+    // Build roster = all characters NOT already in party
+    const partyNames = new Set((this.party || []).map(c => c.name));
+    const roster = this._getRoster().filter(c => !partyNames.has(c.name));
+
+    if (!roster.length) {
+      this.showToast?.('➕ No characters available to add. Create some first!');
+      return;
+    }
+
+    this._showCharSelect(
+      'Add Character to Party',
+      roster.map(c => ({ label: `${c.name}  (${c.class || '?'}, Lv${c.level || 1})`, value: c })),
+      (char) => {
+        if (!this.party) this.party = [];
+        if (this.party.length >= 6) {
+          this.showToast?.('➕ Party is full! (6/6)');
+          return;
+        }
+        this.party.push(char);
+        this._saveRoster();
+        this.showToast?.(`➕ ${char.name} joined the party! (${this.party.length}/6)`);
+        if (this.onAction) this.onAction('add_to_party', { character: char, party: this.party });
+      }
+    );
   }
 
   _handleRemoveFromParty() {
@@ -379,19 +499,30 @@ export class GuildMenuPanel {
       this.showToast?.('➖ No party members to remove.');
       return;
     }
-    this.showToast?.('➖ Select a party member to return to the roster.');
-    if (this.onAction) this.onAction('remove_from_party', { party: this.party });
+
+    this._showCharSelect(
+      'Remove from Party',
+      this.party.map(c => ({ label: `${c.name}  (${c.class || '?'}, Lv${c.level || 1})`, value: c })),
+      (char, idx) => {
+        this.party.splice(idx, 1);
+        this._saveRoster();
+        this.showToast?.(`➖ ${char.name} returned to the roster.`);
+        if (this.onAction) this.onAction('remove_from_party', { character: char, party: this.party });
+      }
+    );
   }
 
   _handleNameParty() {
-    const currentName = this._getSavedPartyName() || 'The Unnamed Company';
-    const newName = window.prompt('Enter party name:', currentName);
-    if (newName && newName.trim()) {
-      const name = newName.trim().slice(0, 32);
-      localStorage.setItem('bt1_party_name', name);
-      this.showToast?.(`📜 Party named: "${name}"`);
-      if (this.onAction) this.onAction('name_party', { name });
-    }
+    const current = this._getSavedPartyName() || '';
+    this._showNameInput(
+      'Name Your Party',
+      current,
+      (name) => {
+        localStorage.setItem('bt1_party_name', name);
+        this.showToast?.(`📜 Party named: "${name}"`);
+        if (this.onAction) this.onAction('name_party', { name });
+      }
+    );
   }
 
   _handleSaveParty() {
@@ -412,38 +543,152 @@ export class GuildMenuPanel {
     } catch (e) {
       this.showToast?.('💾 Save failed — localStorage may be unavailable.');
     }
+    this._render();
   }
 
   _handleDeleteCharacter() {
-    if (!this.party || this.party.length === 0) {
+    const roster = this._getRoster();
+    if (!roster.length) {
       this.showToast?.('☠ No characters to delete.');
       return;
     }
-    const names = this.party.map((c, i) => `${i + 1}. ${c.name} (${c.class})`).join('\n');
-    const choice = window.prompt(`Which character to DELETE? (enter number)\n${names}`, '');
-    if (choice) {
-      const idx = parseInt(choice, 10) - 1;
-      if (idx >= 0 && idx < this.party.length) {
-        const removed = this.party.splice(idx, 1)[0];
-        this.showToast?.(`☠ ${removed.name} has been deleted from the roster.`);
-        if (this.onAction) this.onAction('delete_char', { character: removed, party: this.party });
+
+    this._showCharSelect(
+      'Delete Character (Permanent)',
+      roster.map(c => ({ label: `${c.name}  (${c.class || '?'}, Lv${c.level || 1})`, value: c })),
+      (char, idx) => {
+        this._showConfirm(
+          `☠ PERMANENTLY delete\n"${char.name}"?\nThis cannot be undone!`,
+          () => {
+            const r = this._getRoster();
+            const ri = r.findIndex(c => c.name === char.name);
+            if (ri >= 0) r.splice(ri, 1);
+            this._setRoster(r);
+            // Also remove from party if present
+            if (this.party) {
+              const pi = this.party.findIndex(c => c.name === char.name);
+              if (pi >= 0) this.party.splice(pi, 1);
+            }
+            this.showToast?.(`☠ ${char.name} has been deleted.`);
+            if (this.onAction) this.onAction('delete_char', { character: char });
+          }
+        );
       }
-    }
+    );
   }
 
   _handleDeleteParty() {
-    const confirm = window.confirm('Delete the ENTIRE party? This cannot be undone!');
-    if (confirm) {
-      this.party.length = 0;
-      localStorage.removeItem('bt1_saved_party');
-      this.showToast?.('💀 Party disbanded. The Guild awaits new heroes...');
-      if (this.onAction) this.onAction('delete_party', {});
-      this.close();
+    if (!this.party || this.party.length === 0) {
+      this.showToast?.('💀 No active party to delete.');
+      return;
     }
+    this._showConfirm(
+      `💀 DISBAND the entire party?\nAll members will be lost!\nThis cannot be undone!`,
+      () => {
+        this.party.length = 0;
+        localStorage.removeItem('bt1_saved_party');
+        this.showToast?.('💀 Party disbanded. The Guild awaits new heroes...');
+        if (this.onAction) this.onAction('delete_party', {});
+        this.close();
+      }
+    );
   }
 
+  // ─── Sub-screen launchers ─────────────────────────────────────────────────────
+
+  _showConfirm(message, onYes) {
+    this.mode          = MODE.CONFIRM;
+    this.confirmMsg    = message;
+    this.confirmAction = onYes;
+    this.confirmHover  = -1;
+    this._render();
+  }
+
+  _showCharSelect(title, list, onSelect) {
+    this.mode             = MODE.CHAR_SELECT;
+    this.charSelectTitle  = title;
+    this.charSelectList   = list;
+    this.charSelectAction = onSelect;
+    this.charSelectHover  = -1;
+    this._render();
+  }
+
+  _showNameInput(title, currentValue, onConfirm) {
+    this.mode            = MODE.NAME_INPUT;
+    this.nameInputTitle  = title;
+    this.nameInputStr    = currentValue || '';
+    this.nameInputAction = onConfirm;
+    this._render();
+  }
+
+  _returnToMain() {
+    this.mode            = MODE.MAIN;
+    this.confirmMsg      = '';
+    this.confirmAction   = null;
+    this.confirmHover    = -1;
+    this.charSelectList  = [];
+    this.charSelectAction = null;
+    this.charSelectHover = -1;
+    this.nameInputStr    = '';
+    this.nameInputAction = null;
+    this.hoveredItem     = -1;
+    this._render();
+  }
+
+  // ─── Roster helpers (uses localStorage separate from party save) ──────────────
+  _getRoster() {
+    try {
+      return JSON.parse(localStorage.getItem('bt1_roster') || '[]');
+    } catch { return []; }
+  }
+  _setRoster(roster) {
+    try { localStorage.setItem('bt1_roster', JSON.stringify(roster)); } catch {}
+  }
+  _saveRoster() {
+    // Merge party back into full roster
+    const roster = this._getRoster();
+    for (const member of (this.party || [])) {
+      if (!roster.find(c => c.name === member.name)) roster.push(member);
+    }
+    this._setRoster(roster);
+  }
   _getSavedPartyName() {
     return localStorage.getItem('bt1_party_name') || null;
+  }
+
+  // ─── Name input keyboard UV map ───────────────────────────────────────────────
+  // Virtual keyboard rows rendered in _renderNameInput
+  _uvToNameKey(uv) {
+    const W = this.CW; const H = this.CH;
+
+    // Confirm button: UV y > 0.90 (top area)
+    if (uv.y > 0.90 && uv.x > 0.55) return 'CONFIRM';
+    if (uv.y > 0.90 && uv.x < 0.45) return 'CANCEL';
+
+    // Backspace: bottom-left area approx y 0.08-0.16
+    if (uv.y < 0.15 && uv.x > 0.65) return 'BACKSPACE';
+    if (uv.y < 0.15 && uv.x < 0.35) return 'CLEAR';
+
+    // Keyboard rows — 3 rows occupying UV y 0.20 to 0.78
+    const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM '];
+    const rowYStart = 0.78;
+    const rowYEnd   = 0.20;
+    const rowH      = (rowYStart - rowYEnd) / rows.length;
+
+    for (let r = 0; r < rows.length; r++) {
+      const rowYTop = rowYStart - r * rowH;
+      const rowYBot = rowYTop - rowH;
+      if (uv.y <= rowYTop && uv.y >= rowYBot) {
+        const chars = rows[r];
+        const colW  = 1.0 / chars.length;
+        const col   = Math.floor(uv.x / colW);
+        if (col >= 0 && col < chars.length) {
+          const ch = chars[col];
+          return ch === ' ' ? ' ' : ch;
+        }
+      }
+    }
+    return null;
   }
 
   // ─── Clamp panel position to room bounds ─────────────────────────────────────
@@ -455,45 +700,55 @@ export class GuildMenuPanel {
     pos.z = Math.max(BOUNDS.zMin + 0.05, Math.min(BOUNDS.zMax - 0.05, pos.z));
   }
 
-  // ─── Rendering ───────────────────────────────────────────────────────────────
-
+  // ─── Rendering dispatcher ─────────────────────────────────────────────────────
   _render() {
-    const ctx = this.ctx;
-    const W   = this.CW;
-    const H   = this.CH;
+    switch (this.mode) {
+      case MODE.CONFIRM:     this._renderConfirm();    break;
+      case MODE.CHAR_SELECT: this._renderCharSelect(); break;
+      case MODE.NAME_INPUT:  this._renderNameInput();  break;
+      default:               this._renderMain();       break;
+    }
+    this.texture.needsUpdate = true;
+  }
 
-    // Clear
+  // ─── Shared: draw frame & header ─────────────────────────────────────────────
+  _drawFrame(title, subtitle = '') {
+    const ctx = this.ctx;
+    const W = this.CW;
+    const H = this.CH;
+
     ctx.clearRect(0, 0, W, H);
 
-    const page = MENU_PAGES[this.currentPage];
-
-    // ── Background ────────────────────────────────────────────────────────────
+    // Background
     const bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, C.bgGrad0);
     bg.addColorStop(1, C.bgGrad1);
     ctx.fillStyle = bg;
+    ctx.beginPath();
     ctx.roundRect(4, 4, W - 8, H - 8, 14);
     ctx.fill();
 
-    // ── Outer gold border ─────────────────────────────────────────────────────
+    // Outer gold border
     ctx.strokeStyle = C.border;
     ctx.lineWidth = 3;
+    ctx.beginPath();
     ctx.roundRect(4, 4, W - 8, H - 8, 14);
     ctx.stroke();
 
-    // ── Inner accent border ───────────────────────────────────────────────────
+    // Inner accent border
     ctx.strokeStyle = 'rgba(100,60,0,0.3)';
     ctx.lineWidth = 1;
+    ctx.beginPath();
     ctx.roundRect(14, 14, W - 28, H - 28, 10);
     ctx.stroke();
 
-    // ── Corner decorations ────────────────────────────────────────────────────
+    // Corner decorations
     this._drawCornerDecoration(ctx, 18, 18);
     this._drawCornerDecoration(ctx, W - 18, 18);
     this._drawCornerDecoration(ctx, 18, H - 18);
     this._drawCornerDecoration(ctx, W - 18, H - 18);
 
-    // ── Close button (X) – top right ──────────────────────────────────────────
+    // Close button (X) – top right
     const cx = W - 34;
     const cy = 34;
     const cr = 16;
@@ -509,36 +764,26 @@ export class GuildMenuPanel {
     ctx.textAlign = 'center';
     ctx.fillText('✕', cx, cy + 6);
 
-    // ── Title ─────────────────────────────────────────────────────────────────
+    // Title
     const titleGrad = ctx.createLinearGradient(0, 40, 0, 80);
     titleGrad.addColorStop(0, '#ffe566');
     titleGrad.addColorStop(1, '#cc8800');
     ctx.fillStyle = titleGrad;
-    ctx.font = 'bold 28px "Courier New", monospace';
+    ctx.font = 'bold 26px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(255,150,0,0.6)';
-    ctx.shadowBlur = 12;
-    ctx.fillText(page.title, W / 2, 68);
+    ctx.shadowBlur = 10;
+    ctx.fillText(title, W / 2, 66);
     ctx.shadowBlur = 0;
 
-    ctx.fillStyle = C.titleSub;
-    ctx.font = '14px "Courier New", monospace';
-    ctx.fillText(page.subtitle, W / 2, 90);
-
-    // Party name and member count
-    const partyName = this._getSavedPartyName();
-    if (partyName) {
-      ctx.fillStyle = 'rgba(140,110,60,0.8)';
-      ctx.font = 'italic 13px "Courier New", monospace';
-      ctx.fillText(`"${partyName}"  •  ${this.party.length} member${this.party.length !== 1 ? 's' : ''}`, W / 2, 108);
-    } else {
-      ctx.fillStyle = 'rgba(100,80,50,0.6)';
-      ctx.font = '13px "Courier New", monospace';
-      ctx.fillText(`${this.party.length} party member${this.party.length !== 1 ? 's' : ''}`, W / 2, 108);
+    if (subtitle) {
+      ctx.fillStyle = C.titleSub;
+      ctx.font = '14px "Courier New", monospace';
+      ctx.fillText(subtitle, W / 2, 88);
     }
 
     // Separator
-    const sepGrad = ctx.createLinearGradient(0, 118, W, 118);
+    const sepGrad = ctx.createLinearGradient(0, 100, W, 100);
     sepGrad.addColorStop(0, 'transparent');
     sepGrad.addColorStop(0.3, C.border);
     sepGrad.addColorStop(0.7, C.border);
@@ -546,25 +791,46 @@ export class GuildMenuPanel {
     ctx.strokeStyle = sepGrad;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(30, 120);
-    ctx.lineTo(W - 30, 120);
+    ctx.moveTo(30, 102);
+    ctx.lineTo(W - 30, 102);
     ctx.stroke();
+  }
 
-    // ── Menu items ────────────────────────────────────────────────────────────
-    const n       = page.items.length;
-    const startY  = 132;
-    const endY    = H - 48;
-    const itemH   = (endY - startY) / n;
-    const pad     = 5;
-    const textPad = 16;
+  // ─── MAIN screen ─────────────────────────────────────────────────────────────
+  _renderMain() {
+    const ctx = this.ctx;
+    const W   = this.CW;
+    const H   = this.CH;
+
+    this._drawFrame('Adventurers Guild', 'Character & Party Management');
+
+    // Party name / member count
+    const partyName = this._getSavedPartyName();
+    ctx.textAlign = 'center';
+    if (partyName) {
+      ctx.fillStyle = 'rgba(140,110,60,0.8)';
+      ctx.font = 'italic 13px "Courier New", monospace';
+      ctx.fillText(`"${partyName}"  •  ${this.party.length} member${this.party.length !== 1 ? 's' : ''}`, W / 2, 116);
+    } else {
+      ctx.fillStyle = 'rgba(100,80,50,0.6)';
+      ctx.font = '13px "Courier New", monospace';
+      ctx.fillText(`${this.party.length} party member${this.party.length !== 1 ? 's' : ''}`, W / 2, 116);
+    }
+
+    // Menu items
+    const n      = MENU_ITEMS.length;
+    const startY = 128;
+    const endY   = H - 44;
+    const itemH  = (endY - startY) / n;
+    const pad    = 5;
 
     for (let i = 0; i < n; i++) {
-      const item    = page.items[i];
-      const iy      = startY + i * itemH + pad;
-      const ih      = itemH - pad * 2;
-      const ix      = 20;
-      const iw      = W - 40;
-      const isHov   = this.hoveredItem === i;
+      const item  = MENU_ITEMS[i];
+      const iy    = startY + i * itemH + pad;
+      const ih    = itemH - pad * 2;
+      const ix    = 20;
+      const iw    = W - 40;
+      const isHov = this.hoveredItem === i;
 
       // Item background
       if (isHov) {
@@ -576,60 +842,289 @@ export class GuildMenuPanel {
       } else {
         ctx.fillStyle = C.itemBgNorm;
       }
+      ctx.beginPath();
       ctx.roundRect(ix, iy, iw, ih, 6);
       ctx.fill();
 
       // Item border
       ctx.strokeStyle = isHov ? C.itemBordHL : C.itemBord;
-      ctx.lineWidth = isHov ? 1.5 : 0.8;
+      ctx.lineWidth   = isHov ? 1.5 : 0.8;
+      ctx.beginPath();
       ctx.roundRect(ix, iy, iw, ih, 6);
       ctx.stroke();
 
+      const tPad = 16;
+
       // Icon
-      ctx.font = `${Math.min(24, ih * 0.5)}px serif`;
+      ctx.font      = `${Math.min(22, ih * 0.5)}px serif`;
       ctx.fillStyle = isHov ? '#ffffff' : C.itemNorm;
       ctx.textAlign = 'left';
       ctx.shadowColor = isHov ? 'rgba(180,100,255,0.8)' : 'transparent';
-      ctx.shadowBlur = isHov ? 8 : 0;
-      ctx.fillText(item.icon, ix + textPad, iy + ih * 0.55);
+      ctx.shadowBlur  = isHov ? 8 : 0;
+      ctx.fillText(item.icon, ix + tPad, iy + ih * 0.56);
 
       // Label
-      const fontSize = Math.min(17, ih * 0.38);
-      ctx.font = `bold ${fontSize}px "Courier New", monospace`;
+      const fSize = Math.min(16, ih * 0.38);
+      ctx.font      = `bold ${fSize}px "Courier New", monospace`;
       ctx.fillStyle = isHov ? '#ffffff' : C.itemNorm;
-      ctx.fillText(item.label, ix + textPad + 34, iy + ih * 0.45);
+      ctx.fillText(item.label, ix + tPad + 32, iy + ih * 0.45);
 
       // Description
-      const descSize = Math.min(12, ih * 0.27);
-      ctx.font = `${descSize}px "Courier New", monospace`;
+      const dSize = Math.min(11, ih * 0.27);
+      ctx.font      = `${dSize}px "Courier New", monospace`;
       ctx.fillStyle = isHov ? 'rgba(200,180,255,0.9)' : C.subText;
       ctx.shadowBlur = 0;
-      ctx.fillText(item.desc, ix + textPad + 34, iy + ih * 0.72);
+      ctx.fillText(item.desc, ix + tPad + 32, iy + ih * 0.74);
 
       // Hover arrow
       if (isHov) {
         ctx.fillStyle = '#cc99ff';
-        ctx.font = `${fontSize}px "Courier New", monospace`;
+        ctx.font      = `${fSize}px "Courier New", monospace`;
         ctx.textAlign = 'right';
-        ctx.fillText('▶', ix + iw - textPad, iy + ih * 0.55);
+        ctx.fillText('▶', ix + iw - tPad, iy + ih * 0.56);
         ctx.textAlign = 'left';
       }
     }
 
     ctx.shadowBlur = 0;
 
-    // ── Footer ────────────────────────────────────────────────────────────────
+    // Footer
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.roundRect(20, H - 42, W - 40, 26, 4);
+    ctx.beginPath();
+    ctx.roundRect(20, H - 40, W - 40, 24, 4);
     ctx.fill();
-
-    ctx.font = '11px "Courier New", monospace';
+    ctx.font      = '11px "Courier New", monospace';
     ctx.fillStyle = 'rgba(100,80,140,0.8)';
     ctx.textAlign = 'center';
-    ctx.fillText('Point & trigger to select  •  Grab edge to move  •  ✕ to close', W / 2, H - 24);
+    ctx.fillText('Point & trigger to select  •  Grab edge to move  •  ✕ to close', W / 2, H - 22);
     ctx.textAlign = 'left';
+  }
 
-    this.texture.needsUpdate = true;
+  // ─── CONFIRM sub-screen ───────────────────────────────────────────────────────
+  _renderConfirm() {
+    const ctx = this.ctx;
+    const W   = this.CW;
+    const H   = this.CH;
+
+    this._drawFrame('Confirm Action');
+
+    // Message (multi-line)
+    ctx.fillStyle = '#e0d0b0';
+    ctx.font      = '18px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    const lines = this.confirmMsg.split('\n');
+    const lineH = 28;
+    const startY = 200 - ((lines.length - 1) * lineH) / 2;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], W / 2, startY + i * lineH);
+    }
+
+    // Yes / No buttons
+    const btnW = 180;
+    const btnH = 56;
+    const btnY = 340;
+    const yesX = W / 2 - 100 - btnW / 2;
+    const noX  = W / 2 + 100 - btnW / 2;
+
+    const yHov = this.confirmHover === 0;
+    const nHov = this.confirmHover === 1;
+
+    // YES
+    ctx.fillStyle = yHov ? '#3a9a3a' : C.confirmYes;
+    ctx.beginPath();
+    ctx.roundRect(yesX, btnY, btnW, btnH, 10);
+    ctx.fill();
+    ctx.strokeStyle = yHov ? '#88ff88' : '#55aa55';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font      = 'bold 22px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('✔  YES', yesX + btnW / 2, btnY + 36);
+
+    // NO
+    ctx.fillStyle = nHov ? '#cc4444' : C.confirmNo;
+    ctx.beginPath();
+    ctx.roundRect(noX, btnY, btnW, btnH, 10);
+    ctx.fill();
+    ctx.strokeStyle = nHov ? '#ff8888' : '#aa4444';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font      = 'bold 22px "Courier New", monospace';
+    ctx.fillText('✘  NO', noX + btnW / 2, btnY + 36);
+
+    ctx.textAlign = 'left';
+  }
+
+  // ─── CHAR SELECT sub-screen ───────────────────────────────────────────────────
+  _renderCharSelect() {
+    const ctx  = this.ctx;
+    const W    = this.CW;
+    const H    = this.CH;
+    const list = this.charSelectList;
+
+    this._drawFrame(this.charSelectTitle || 'Select Character');
+
+    if (!list.length) {
+      ctx.fillStyle = 'rgba(180,140,80,0.8)';
+      ctx.font      = '18px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('No characters available.', W / 2, H / 2);
+      ctx.textAlign = 'left';
+      this._drawBackBtn();
+      return;
+    }
+
+    const startY = 120;
+    const endY   = H - 72;
+    const itemH  = Math.min(68, (endY - startY) / list.length);
+    const pad    = 4;
+
+    for (let i = 0; i < list.length; i++) {
+      const entry  = list[i];
+      const iy     = startY + i * itemH + pad;
+      const ih     = itemH - pad * 2;
+      const ix     = 24;
+      const iw     = W - 48;
+      const isHov  = this.charSelectHover === i;
+
+      ctx.fillStyle = isHov ? 'rgba(80,40,140,0.85)' : 'rgba(20,10,40,0.5)';
+      ctx.beginPath();
+      ctx.roundRect(ix, iy, iw, ih, 6);
+      ctx.fill();
+
+      ctx.strokeStyle = isHov ? C.itemBordHL : C.itemBord;
+      ctx.lineWidth   = isHov ? 1.5 : 0.8;
+      ctx.stroke();
+
+      ctx.fillStyle   = isHov ? '#ffffff' : C.itemNorm;
+      ctx.font        = `bold 16px "Courier New", monospace`;
+      ctx.textAlign   = 'left';
+      ctx.shadowColor = isHov ? 'rgba(180,100,255,0.8)' : 'transparent';
+      ctx.shadowBlur  = isHov ? 6 : 0;
+      ctx.fillText(entry.label, ix + 16, iy + ih * 0.62);
+      ctx.shadowBlur  = 0;
+
+      if (isHov) {
+        ctx.fillStyle = '#cc99ff';
+        ctx.textAlign = 'right';
+        ctx.fillText('▶', ix + iw - 12, iy + ih * 0.62);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    this._drawBackBtn();
+  }
+
+  // ─── NAME INPUT sub-screen ────────────────────────────────────────────────────
+  _renderNameInput() {
+    const ctx = this.ctx;
+    const W   = this.CW;
+    const H   = this.CH;
+
+    this._drawFrame(this.nameInputTitle || 'Enter Name');
+
+    // Current input display
+    ctx.fillStyle = 'rgba(20,10,40,0.85)';
+    ctx.beginPath();
+    ctx.roundRect(30, 110, W - 60, 48, 8);
+    ctx.fill();
+    ctx.strokeStyle = C.borderHL;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const display = this.nameInputStr + (Date.now() % 800 < 400 ? '▌' : '');
+    ctx.fillStyle = '#ffe566';
+    ctx.font      = 'bold 20px "Courier New", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(display || '▌', 44, 144);
+
+    // Virtual keyboard
+    const rows  = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM '];
+    const keyH  = 52;
+    const startY = 175;
+
+    for (let r = 0; r < rows.length; r++) {
+      const chars   = rows[r];
+      const rowY    = startY + r * (keyH + 4);
+      const keyW    = Math.floor((W - 40) / chars.length);
+      const offsetX = 20 + (W - 40 - keyW * chars.length) / 2;
+
+      for (let c = 0; c < chars.length; c++) {
+        const ch = chars[c];
+        const kx = offsetX + c * keyW;
+        ctx.fillStyle = 'rgba(40,20,70,0.85)';
+        ctx.beginPath();
+        ctx.roundRect(kx + 2, rowY, keyW - 4, keyH, 5);
+        ctx.fill();
+        ctx.strokeStyle = C.itemBord;
+        ctx.lineWidth   = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = C.itemNorm;
+        ctx.font      = `bold 16px "Courier New", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(ch === ' ' ? '⎵' : ch, kx + keyW / 2, rowY + keyH * 0.65);
+      }
+    }
+
+    // BACKSPACE & CLEAR
+    const utilY = startY + rows.length * (keyH + 4) + 4;
+    ctx.fillStyle = 'rgba(80,20,20,0.8)';
+    ctx.beginPath();
+    ctx.roundRect(20, utilY, 160, 44, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#aa3333'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#ff9999'; ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⌫ CLEAR', 100, utilY + 28);
+
+    ctx.fillStyle = 'rgba(40,20,80,0.8)';
+    ctx.beginPath();
+    ctx.roundRect(W - 200, utilY, 180, 44, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#6644aa'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#cc99ff';
+    ctx.fillText('⌫ BACK', W - 110, utilY + 28);
+
+    // CONFIRM and CANCEL buttons
+    const confirmY = H - 80;
+    ctx.fillStyle = 'rgba(20,70,20,0.9)';
+    ctx.beginPath();
+    ctx.roundRect(20, confirmY, 220, 48, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#55aa55'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#88ff88'; ctx.font = 'bold 17px "Courier New", monospace';
+    ctx.fillText('✔  CONFIRM NAME', 130, confirmY + 31);
+
+    ctx.fillStyle = 'rgba(70,20,20,0.9)';
+    ctx.beginPath();
+    ctx.roundRect(W - 240, confirmY, 220, 48, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#aa4444'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#ff8888';
+    ctx.fillText('✘  CANCEL', W - 130, confirmY + 31);
+
+    ctx.textAlign = 'left';
+  }
+
+  // ─── Shared helpers ───────────────────────────────────────────────────────────
+
+  _drawBackBtn() {
+    const ctx = this.ctx;
+    const W   = this.CW;
+    const H   = this.CH;
+    ctx.fillStyle = 'rgba(40,20,80,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(20, H - 56, 180, 36, 6);
+    ctx.fill();
+    ctx.strokeStyle = C.itemBord; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle   = C.back;
+    ctx.font        = '14px "Courier New", monospace';
+    ctx.textAlign   = 'center';
+    ctx.fillText('◀  Back', 110, H - 32);
+    ctx.textAlign   = 'left';
   }
 
   _drawCornerDecoration(ctx, x, y) {

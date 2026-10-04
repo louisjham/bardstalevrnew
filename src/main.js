@@ -12,6 +12,8 @@ import { AmigaIntroScene } from './world/intro/AmigaIntroScene.js';
 import { FullVRTavern } from './world/FullVRTavern.js';
 import { GuildMenuPanel } from './ui/spatial-hud/GuildMenuPanel.js';
 import { GarthsShop } from './world/garths-shop/GarthsShop.js';
+import { TempleRoom } from './world/temple/TempleRoom.js';
+import { RoscoeEmporium } from './world/roscoe/RoscoeEmporium.js';
 import { SkaraBraeGrid } from './world/skara-brae/SkaraBraeGrid.js';
 import { SkaraBraeStreetScene } from './world/skara-brae/SkaraBraeStreetScene.js';
 import { CombatArena } from './world/combat-zone/CombatArena.js';
@@ -46,11 +48,16 @@ class BardsTaleApp {
     this.camera.position.set(0, 1.18, 0); // Eye height (1.18m matching Bard and seated patrons)
 
     // WebGL Renderer
+    // antialias: false in XR (Quest compositor handles MSAA); true on desktop
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Cap at 1.0 — Quest 2 devicePixelRatio is 2.0 which would 4× the pixel cost.
+    // The Quest compositor handles super-sampling; rendering at native resolution
+    // is the correct approach for smooth VR framerates.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+    // Shadow maps disabled — no light in the game has castShadow:true, so enabling
+    // PCFSoftShadowMap only wastes GPU setup time every frame.
+    this.renderer.shadowMap.enabled = false;
     this.container.appendChild(this.renderer.domElement);
 
     // Audio Engine & Singer
@@ -238,7 +245,27 @@ class BardsTaleApp {
       (msg) => this.showToast(msg)
     );
 
-    // 4. Location 4: Dedicated 3D Spatial Combat Arena
+    // 4. Temple of the Divine Light / Mad God Tarjan
+    this.templeRoom = new TempleRoom(
+      this.scene,
+      this.camera,
+      () => this.gameLoop.setState(GameState.SKARA_BRAE_STREETS),
+      this.gameLoop.party,
+      () => this.templeUI.show(this.templeRoom.templeName, this.templeRoom.isTarjan),
+      (msg) => this.showToast(msg)
+    );
+
+    // 5. Roscoe's Energy Emporium
+    this.roscoeRoom = new RoscoeEmporium(
+      this.scene,
+      this.camera,
+      () => this.gameLoop.setState(GameState.SKARA_BRAE_STREETS),
+      this.gameLoop.party,
+      () => this.roscoeUI.show(this.gameLoop.party),
+      (msg) => this.showToast(msg)
+    );
+
+    // 6. Dedicated 3D Spatial Combat Arena
     this.combatArena = new CombatArena(
       this.scene,
       this.camera,
@@ -261,7 +288,9 @@ class BardsTaleApp {
     // Party Creation UI
     this.partyUI = new PartyCreationUI((party) => {
       this.gameLoop.setParty(party);
-      this.garthsShop.party = party; // Keep shop's party reference in sync
+      this.garthsShop.party = party;
+      this.templeRoom.setParty(party);
+      this.roscoeRoom.setParty(party);
       this.timeEngine.setParty(party);
       this.templeUI.setParty(party);
       this.roscoeUI.setParty(party);
@@ -426,6 +455,8 @@ class BardsTaleApp {
     if (this.amigaIntro) { this.amigaIntro.setVisible(false); this.amigaIntro.stop(); }
     this.tavern.setVisible(false);
     this.garthsShop.setVisible(false);
+    this.templeRoom.setVisible(false);
+    this.roscoeRoom.setVisible(false);
     this.streetScene.setVisible(false);
     this.skaraBraeGrid.setVisible(false);
     this.combatArena.arenaGroup.visible = false;
@@ -528,6 +559,36 @@ class BardsTaleApp {
       if (this.xr.isVRActive) {
         this.xr.triggerHaptics(0, 0.6, 120);
       }
+    } else if (newState === GameState.TEMPLE) {
+      this.ensureStarterParty();
+      this.singer.stopSong();
+      this.instructionWindow.hide();
+      this.templeRoom.configure(this.templeRoom.templeName, this.templeRoom.isTarjan);
+      this.templeRoom.setVisible(true);
+      this.grimoire.setEnabled(true);
+      this.xrRig.setPosition(0, 0, 1.8);
+      this.camera.position.set(0, 1.18, 0);
+      this.camera.rotation.z = 0;
+      this.synth.init();
+      this.synth.playSequence(['F4', 'A4', 'C5', 'F5'], 160);
+      const templeLbl = this.templeRoom.isTarjan ? "🗡️ Temple of the Mad God Tarjan" : "🏛️ Temple of the Divine Light";
+      this.showToast(`${templeLbl} — Tap the Priest or press [A] to receive healing.`);
+      // Immediately show the service UI
+      this.templeUI.show(this.templeRoom.templeName, this.templeRoom.isTarjan);
+    } else if (newState === GameState.ROSCOE) {
+      this.ensureStarterParty();
+      this.singer.stopSong();
+      this.instructionWindow.hide();
+      this.roscoeRoom.setVisible(true);
+      this.grimoire.setEnabled(true);
+      this.xrRig.setPosition(0, 0, 1.8);
+      this.camera.position.set(0, 1.18, 0);
+      this.camera.rotation.z = 0;
+      this.synth.init();
+      this.synth.playSequence(['D4', 'G4', 'B4', 'D5'], 150);
+      this.showToast("⚡ Roscoe's Energy Emporium — Tap Roscoe or press [A] to recharge Spell Points (15 GP/SP).");
+      // Immediately show the service UI
+      this.roscoeUI.show(this.gameLoop.party);
     } else if (newState === GameState.SKARA_BRAE_STREETS) {
       this.ensureStarterParty();
       this.singer.stopSong();
@@ -824,6 +885,34 @@ class BardsTaleApp {
             this.garthsShop.triggerDesktopSwing(this.synth);
           }
         }
+      } else if (state === GameState.TEMPLE) {
+        const intersects = raycaster.intersectObjects(this.templeRoom.interactableObjects, true);
+        if (intersects.length > 0) {
+          let obj = intersects[0].object;
+          while (obj && !obj.userData.isTempleNPC && !obj.userData.isExitDoor && obj.parent) {
+            obj = obj.parent;
+          }
+          if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.6, 80);
+          if (obj && obj.userData.isTempleNPC) {
+            this.templeUI.show(this.templeRoom.templeName, this.templeRoom.isTarjan);
+          } else if (obj && obj.userData.isExitDoor) {
+            this.gameLoop.setState(GameState.SKARA_BRAE_STREETS);
+          }
+        }
+      } else if (state === GameState.ROSCOE) {
+        const intersects = raycaster.intersectObjects(this.roscoeRoom.interactableObjects, true);
+        if (intersects.length > 0) {
+          let obj = intersects[0].object;
+          while (obj && !obj.userData.isRoscoeNPC && !obj.userData.isExitDoor && obj.parent) {
+            obj = obj.parent;
+          }
+          if (controllerIndex !== null) this.xr.triggerHaptics(controllerIndex, 0.6, 80);
+          if (obj && obj.userData.isRoscoeNPC) {
+            this.roscoeUI.show(this.gameLoop.party);
+          } else if (obj && obj.userData.isExitDoor) {
+            this.gameLoop.setState(GameState.SKARA_BRAE_STREETS);
+          }
+        }
       } else if (state === GameState.SKARA_BRAE_STREETS) {
         const intersects = raycaster.intersectObjects(this.streetScene.interactableObjects, true);
         if (intersects.length > 0) {
@@ -855,9 +944,21 @@ class BardsTaleApp {
                 this.showToast("📜 The Review Board is closed until morning light. Seek shelter at the Adventurers Guild.");
               }
             } else if (obj.userData.isTempleDoor) {
-              this.templeUI.show(obj.userData.templeName, obj.userData.isTarjan);
+              // Configure which temple then enter the 3D room
+              this.templeRoom.configure(obj.userData.templeName || 'Temple', obj.userData.isTarjan || false);
+              if (this.timeEngine.areTownServicesOpen || obj.userData.isTarjan) {
+                this.gameLoop.setState(GameState.TEMPLE);
+                this.showToast(`🏛️ Entering ${obj.userData.templeName || 'the Temple'}...`);
+              } else {
+                this.showToast("🕯️ The temple doors are sealed until morning light.");
+              }
             } else if (obj.userData.isRoscoeDoor) {
-              this.roscoeUI.show(this.gameLoop.party);
+              if (this.timeEngine.areTownServicesOpen) {
+                this.gameLoop.setState(GameState.ROSCOE);
+                this.showToast("⚡ Entering Roscoe's Energy Emporium...");
+              } else {
+                this.showToast("⚡ Roscoe's Emporium is closed for the night. Return at daybreak.");
+              }
             } else if (obj.userData.isStatue) {
               this.synth.init();
               this.synth.playSequence(['D4', 'A4', 'D5'], 150);
@@ -1262,13 +1363,13 @@ class BardsTaleApp {
           if (obj && obj.userData.isTavernDialogue) {
             this.focusedTarget = { type: 'TAVERN_DIALOGUE', hit: intersects[0] };
             promptText = '📜 [A] Click Dialogue Button';
+          } else if (obj && obj.userData.isBard) {
+            this.focusedTarget = { type: 'GUILD_BARD', object: obj };
+            promptText = '🛡️ [A] Open Adventurers Guild Menu';
           } else if (obj && obj.userData.isPatron) {
             this.focusedTarget = { type: 'TAVERN_PATRON', object: obj, patronKey: obj.userData.patronKey };
             const count = this.pendingRecruits ? this.pendingRecruits.length : 0;
             promptText = `🍻 [A] Recruit ${obj.userData.name || 'Patron'} (${count}/6)`;
-          } else if (obj && obj.userData.isBard) {
-            this.focusedTarget = { type: 'GUILD_BARD', object: obj };
-            promptText = '🛡️ [A] Open Adventurers Guild Menu';
           } else if (obj && obj.userData.isDoor) {
             this.focusedTarget = { type: 'TAVERN_DOOR', object: obj };
             promptText = "🚪 [A] Enter Garth's Shop";
@@ -1777,6 +1878,10 @@ class BardsTaleApp {
         this.tavern.update(time, deltaTime);
       } else if (this.gameLoop.currentState === GameState.GARTHS_SHOP) {
         this.garthsShop.update(time);
+      } else if (this.gameLoop.currentState === GameState.TEMPLE) {
+        this.templeRoom.update(time);
+      } else if (this.gameLoop.currentState === GameState.ROSCOE) {
+        this.roscoeRoom.update(time);
       } else if (this.gameLoop.currentState === GameState.SKARA_BRAE_STREETS) {
         this.streetScene.update(deltaTime);
         const headPos = this.xrRig.getWorldHeadPosition();
